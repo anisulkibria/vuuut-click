@@ -1,0 +1,16 @@
+{
+  "name": "vuuut-click-browser-tools",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "esbuild tracker/src/index.ts --bundle --minify --format=iife --global-name=VuuutClickSDK --outfile=tracker/dist/tracker.js && esbuild tracker/src/index.ts --bundle --minify --format=esm --outfile=tracker/dist/index.js && esbuild tracker/src/vitals.ts --bundle --minify --format=iife --outfile=tracker/dist/vitals.js && esbuild tracker/src/api.ts --bundle --minify --format=esm --outfile=tracker/dist/api.js",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3",
+    "web-vitals": "5.1.0"
+  }
+}

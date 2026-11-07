@@ -1,0 +1,17 @@
+/target/
+/node_modules/
+/dashboard/dist/
+/.env
+/.env.*
+!/.env.example
+/backups/
+*.dump
+*.sql.gz
+*.pem
+*.key
+/data/
+/test-results/
+/playwright-report/
+*.log
+.DS_Store
+/.local/

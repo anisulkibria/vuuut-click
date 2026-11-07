@@ -1,0 +1,38 @@
+[package]
+name = "click-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+click-core.workspace = true
+click-store.workspace = true
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+hex.workspace = true
+url.workspace = true
+ipnet.workspace = true
+argon2.workspace = true
+rand.workspace = true
+hickory-resolver.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+reqwest.workspace = true
+hmac.workspace = true
+async-trait.workspace = true
+lettre.workspace = true
+clickhouse.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true
+clickhouse.workspace = true

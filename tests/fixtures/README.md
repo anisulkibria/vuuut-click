@@ -1,0 +1,1 @@
+GeoIP2-Country-Test.mmdb comes from https://github.com/maxmind/MaxMind-DB/tree/main/test-data and is used only in automated tests. See MAXMIND-LICENSE (Apache-2.0/MIT as stated upstream). It is not a production GeoLite database and must never be loaded by run.sh or production deployments. Fixture lookups: 81.2.69.142 → GB; 2001:218:: → JP.

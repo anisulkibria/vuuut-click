@@ -1,0 +1,7 @@
+{$DOMAIN} {
+    encode zstd gzip
+    # Run readiness checks on the private network, never through the public edge.
+    @internal path /readyz /healthz
+    respond @internal 404
+    reverse_proxy app:8082
+}

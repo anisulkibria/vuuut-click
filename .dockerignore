@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+backups
+*.dump
+*.sql.gz
+*.pem
+*.key
+.local
+node_modules
+target
+tests
+test-results
+playwright-report
+data
+*.log

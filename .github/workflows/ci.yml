@@ -1,0 +1,40 @@
+name: verify
+on: [push, pull_request]
+jobs:
+  rust-and-real-stack:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env: {POSTGRES_USER: click, POSTGRES_DB: click, POSTGRES_PASSWORD: ci_test_only}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U click -d click" --health-interval 5s --health-retries 30
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.8.4.13
+        env: {CLICKHOUSE_USER: click, CLICKHOUSE_DB: click, CLICKHOUSE_PASSWORD: ci_test_only, CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: '1'}
+        ports: ["8123:8123"]
+        options: --health-cmd "clickhouse-client --user click --password ci_test_only --query 'SELECT 1'" --health-interval 5s --health-retries 30
+    env:
+      APP_ENV: development
+      ALLOW_LOCALHOST: 'true'
+      DATABASE_URL: postgres://click:ci_test_only@localhost:5432/click
+      CLICKHOUSE_URL: http://localhost:8123
+      CLICKHOUSE_USER: click
+      CLICKHOUSE_PASSWORD: ci_test_only
+      CLICKHOUSE_DATABASE: click
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: {components: rustfmt, clippy}
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked -- --include-ignored
+      - uses: actions/setup-node@v4
+        with: {node-version: '24', cache: npm}
+      - run: npm ci && npm run check && npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Real browser tests
+        run: |
+          cargo run --locked -p click-server -- serve > /tmp/click-server.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS http://localhost:8082/readyz && break; sleep 1; done
+          npm run test:e2e

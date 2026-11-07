@@ -1,0 +1,86 @@
+name: vuuut-click
+services:
+  app:
+    build: {context: ..}
+    restart: unless-stopped
+    init: true
+    environment:
+      APP_ENV: production
+      BIND: 0.0.0.0:8082
+      PUBLIC_URL: https://${DOMAIN:?Set DOMAIN}
+      ALLOW_LOCALHOST: "false"
+      DATABASE_URL: postgres://click:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/click
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: click
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DATABASE: click
+      GEOIP_PATH: /geoip/GeoLite2-Country.mmdb
+      RUST_LOG: click_server=info,tower_http=info
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICES_JSON: ${STRIPE_PRICES_JSON:-{}}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Set to the actual Caddy network when enabling forwarding; never use 0.0.0.0/0.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+    volumes: ["../data/geoip:/geoip:ro"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8082/readyz"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+    mem_limit: 1g
+    cpus: 2
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=32m"]
+  postgres:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: click
+      POSTGRES_DB: click
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: ["pg_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U click -d click"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: 768m
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8.4.13
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: click
+      CLICKHOUSE_DB: click
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes: ["ch_data:/var/lib/clickhouse"]
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user click --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    ulimits: {nofile: {soft: 262144, hard: 262144}}
+    mem_limit: 2g
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
+    depends_on: [app]
+    mem_limit: 256m
+volumes:
+  pg_data:
+  ch_data:
+  caddy_data:
+  caddy_config:
