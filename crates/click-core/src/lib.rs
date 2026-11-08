@@ -1,4 +1,5 @@
 //! Shared contracts. The collection token is public; it never grants query access.
+pub mod totp;
 use ipnet::IpNet;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -158,6 +159,23 @@ impl BrowserEvent {
             currency: String::new(),
         })
     }
+}
+
+/// Compare two strings without letting the time taken reveal where they
+/// first differ.
+///
+/// Used for one-time codes and tokens, where an early-exit comparison leaks
+/// how much of a guess was right.
+pub fn constant_time_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 pub fn digest(value: &str) -> String {

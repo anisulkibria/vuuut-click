@@ -51,6 +51,14 @@ async fn main() -> anyhow::Result<()> {
                 )
             })?;
         let mut tx = store.pg.begin().await?;
+        sqlx::query("SELECT id FROM users WHERE id=$1 FOR UPDATE")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE account_tokens SET used_at=now() WHERE user_id=$1 AND used_at IS NULL")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
         sqlx::query("INSERT INTO platform_owners(user_id) VALUES($1) ON CONFLICT DO NOTHING")
             .bind(id)
             .execute(&mut *tx)

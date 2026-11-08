@@ -277,11 +277,14 @@ name = "click-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "data-encoding",
  "hex",
+ "hmac",
  "ipnet",
  "maxminddb",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "thiserror 2.0.21",
  "url",

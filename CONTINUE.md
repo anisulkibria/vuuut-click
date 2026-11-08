@@ -1,6 +1,6 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-08 (Asia/Dhaka). Work is intentionally **paused at the user's request** because weekly Codex/ChatGPT usage is nearly exhausted. Finish the checkpoint, keep the local app running, and do no further feature development until the user asks to resume. On another device, open this repository in Codex and say **continue**: AGENTS.md tells the agent to read this file first.
+Last handoff: 2026-11-08 (Asia/Dhaka). The user resumed work and requested completion of **Priority 1**. That priority is now complete for local development; see the completion section below. Earlier pause/checkpoint sections are historical. The local app remains at http://localhost:8082. Native integration (Priority 2) and production release gates remain separate unfinished work. On another device, AGENTS.md instructs the agent to read this file when asked to continue.
 
 ## What the user is building
 
@@ -24,7 +24,7 @@ Accepted decisions and follow-up requirements:
 
 **Advanced analytics** (sidebar → `/insights`): ordered page/event funnels, session journeys, first-touch/last-touch/last-non-direct net revenue attribution with a 30-day acquisition lookback, separate currencies/refunds, and latest-instance Web Vitals p50/p75/p95. Optional `vitals.js` uses official MIT web-vitals. Page funnel steps count pageview events only; tests caught and fixed a performance-event overcount.
 
-**Workspace & settings** (sidebar → `/settings`): multiple organizations, rename/switch, team invitations with one-time fragment links and seat reservations, role updates/removal with last-owner protection, website name/origin/collection changes, read/integration credential creation/revocation/atomic rotation, usage and plan allowances, retention, durable CSV exports/download, website/workspace deletion, profile, password change, other-session revocation, email verification and password reset. Invites currently return a shareable link; automatic invitation email is not implemented. Viewer permissions intentionally hide management controls.
+**Workspace & settings** (sidebar → `/settings`): multiple organizations, rename/switch, team invitations with one-time fragment links and seat reservations, role updates/removal with last-owner protection, website name/origin/collection changes, read/integration credential creation/revocation/atomic rotation, usage and plan allowances, retention, durable CSV exports/download, website/workspace deletion, profile, password change, other-session revocation, email verification and password reset. Invites queue email transactionally when configured and also return a shareable link; development uses private local mail files. Viewer permissions intentionally hide management controls.
 
 **Billing/account services**: provider-neutral interface plus Stripe HTTP adapter, checkout attempts/idempotency, signed raw-body webhooks with timestamp/mode checks, authoritative current-subscription lookup, transactional dedup/entitlements, billing portal. No entitlement upgrade on a checkout return URL. Without credentials, local test plans record no payment. SMTP supports STARTTLS/implicit TLS; development writes private `.local/mail/*.eml`. Hashed one-use reset/verify tokens, expiry and session revocation. Production registration needs SMTP, and real website creation requires verified email.
 
@@ -43,13 +43,26 @@ Original machine project: `/Users/anisulkibria/Documents/Rust/Ghost/Vuuut-click`
 - Homepage: http://localhost:8082/
 - Customer: http://localhost:8082/signin → `/dashboard`
 - Owner: http://localhost:8082/owner/signin → `/owner/dashboard`
+- The sign-in pages are `/signin` and `/owner/signin`; `/auth/login` and
+  `/owner/auth/login` are POST form targets, not pages. `/login`, `/register`
+  and `/owner/login` are now 303 aliases to the real pages — `/owner/login`
+  previously returned 404, because the `/owner/{section}` catch-all rejects an
+  unknown section before considering who is asking, so a wrong address looked
+  like a broken portal.
 - Existing local customer email: `user@vuuut.local` (viewer in its shared workspace).
-- Existing local platform owner email: `admin@vuuut.local`.
+- Existing local platform owner email: `admin@vuuut.local`, workspace `Vuuut
+  Platform`. Recreated 2026-11-08 at the user's request: the account named in
+  the earlier handoff was no longer in the database, and
+  `.local/development-accounts.json` was missing, so neither survived the
+  device move. It was registered through `/v1/auth/register` (so the password
+  is Argon2-hashed by the app's own path) and then granted with
+  `grant-owner`. Email is unverified, which is fine for the owner console but
+  blocks creating a real website from that account.
 - Passwords are unchanged and stored only in ignored **`.local/development-accounts.json`**, mode 0600. Never put those passwords in tracked docs, commits, output or production defaults.
 - Existing demo website: `Vuuut Journal · Demo`, id `2220b39d-ac4c-4830-9ed4-c242718129c0`. Existing real website stays separate.
 - Local private `.env`; Docker PostgreSQL on 55432, ClickHouse HTTP on 58123. Persistent named Docker volumes. Health `/healthz`, dependencies `/readyz`.
 - Main server log/PID: `.local/server.log`, `.local/server.pid`. Temporary staging 8083 was stopped; the verified build is running on 8082. Verify readiness; do not assume a process survived a device restart.
-- Migrations 0001–0006 PostgreSQL and 0001–0002 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
+- Migrations 0001–0009 PostgreSQL and 0001–0002 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
 
 ## Clone and run on another device
 
@@ -94,6 +107,119 @@ Completed locally against real PostgreSQL/ClickHouse:
 - Browser screenshots of demo reports and phone settings inspected. Full tables scroll inside their panel on small screens.
 - No external SMTP, real Stripe account, public domain/TLS, production MaxMind, Linux image deployment or production load gates verified. Configurable adapters are implemented; external service validation is still required.
 
+## Resumed 2026-11-08 — priority 1, goal and funnel editing
+
+Work resumed at the user's request. Two items from priority 1 below are now
+done; the rest of that list stands unchanged.
+
+**Goals and funnels are editable.** Both were create-and-delete only, so a goal
+whose event had been renamed in the site's own code, or a funnel with one wrong
+step, could not be corrected — only destroyed and rebuilt under a new name,
+losing the original. Added `PATCH /v1/websites/{id}/goals/{goal}` and `PATCH
+/v1/websites/{id}/funnels/{funnel}`, plus the UI for both: a per-goal edit
+disclosure and a Remove button on Events & goals (goal deletion had been API
+only), and an "Edit this funnel" disclosure pre-filled with the funnel's own
+steps on Advanced analytics → Funnels. Goal rows stay readable text cells with
+editing folded into a disclosure; putting the fields in the cells was tried
+first and reverted, because it takes the values out of the table's text and the
+browser suite caught it at once. HTML forms reach these through
+`POST /goals/action` and the existing `/insights/action`, since a browser form
+cannot send PATCH; the JSON API keeps PATCH.
+
+**Every goal/funnel mutation now re-checks privileges inside its own
+transaction**, through one new `workspace::lock_editor`. Previously `add_goal`
+and `create_funnel` locked the organization row with a bare `SELECT … FOR
+UPDATE` and re-checked membership with a hardcoded `role IN (…)` list, while
+both delete paths did neither. Two consequences, both fixed: a role revoked
+after a request's own check could still complete a write, and **a suspended
+workspace could still create or delete goals and funnels**, because
+`auth::authorize_site` re-reads membership per request but never looks at
+`organizations.status`. `lock_editor` reuses the existing `lock_org`, which
+refuses a workspace that is not active, and decides the role through
+`click_core::Role::can_edit_goals` so who may edit is defined once instead of
+being respelled per query.
+
+Verified: `cargo fmt --all --check` clean; Clippy clean with warnings denied;
+`cargo test --workspace -- --include-ignored` at **9 unit + 5 real-database
+integration tests passed**; **5/5 Playwright tests**, with the analytics spec
+extended to drive the new goal edit, goal remove and funnel edit forms in a
+real browser. `real_stack.rs` gained the edit paths, duplicate-name conflict,
+invalid event name, unknown id, cross-website isolation, viewer refusal, a
+lock-contended race that revokes a role while the request waits on the
+organization row, and the suspended-workspace refusal. The race and suspension
+assertions were checked by removing `lock_editor` and confirming the suite
+fails, so they are not passing vacuously.
+
+### The same recheck across the remaining workspace mutations
+
+Audited every transactional mutation for whether it re-reads the actor's role,
+and the workspace's status, inside the transaction that writes. The guard is
+now `workspace::lock_member(tx, org, actor, allow)`, taking the same `Role`
+predicate the pre-transaction check used, with `lock_editor` as the
+goal/funnel wrapper. Three real holes were closed:
+
+- **`retention` reported success while changing nothing.** Its membership test
+  was an `EXISTS` inside the `UPDATE`, so a role lost in the race window meant
+  zero rows changed, `Ok(())` returned, and an audit entry written saying the
+  retention *had* been changed. Now the role is checked under the lock and a
+  zero-row update is an error.
+- **A suspended workspace could issue API credentials** (`issue_key`) and
+  **change where collection comes from** (`update_website`). A credential
+  grants access to the data the suspension withdrew. Both now refuse.
+- **`queue_export` never re-read the membership at all** — a member removed
+  after their request began could still queue an export of the whole
+  workspace's data.
+
+Two paths deliberately keep working while a workspace is suspended, through
+`lock_member_even_if_suspended`, which re-checks the role but waives the
+active-workspace requirement. The name is the documentation at the call site:
+
+- **`checkout`**, because paying is how a past-due workspace recovers, and
+  refusing it would trap the customer in the state they are trying to leave.
+  It did not re-check ownership inside the transaction; now it does.
+- **`delete_site` / `delete_workspace`**, because erasing your own data has to
+  remain possible while suspended. These already re-checked the role
+  explicitly; the change only removes a second hardcoded role list.
+
+Left alone on purpose, and *not* to be "fixed" by applying the guard
+mechanically: the background workers (`process_export`, `process_deletion`,
+`enforce_retention`) and the Stripe webhook (`apply_event`) have no actor and
+must run against a suspended workspace; `owner::action` is how a platform
+owner suspends and reactivates, so gating it on an active workspace would make
+reactivation impossible. `delete_workspace` keeps its own explicit owner check
+because it needs the workspace name from the locked row for its confirmation
+prompt.
+
+Behaviour change worth your review: a suspended workspace can no longer change
+retention, rename a website, change its origin, issue credentials, or queue an
+export. That follows the stance the code already took for workspace management
+(`rename_workspace`, `invite_member`, `change_member` all refused when
+suspended), but it is a policy decision, not only a bug fix. Export is the one
+I am least sure of — data portability is an argument for allowing it while
+suspended. Say so and it is a one-line change to
+`lock_member_even_if_suspended`.
+
+Verified: fmt and Clippy clean with warnings denied; **9 unit + 5
+real-database integration tests passed**; **5/5 Playwright**. The retention
+no-op and the suspended-credential refusals were each confirmed by reverting
+the fix and watching the suite fail — the retention one only reproduces as a
+lock-contended race, because the per-request check catches a role that is
+already gone, so the test holds the organization row while the request waits.
+
+Note for the next session: the local server applies a per-IP allowance of 20
+sensitive requests a minute (`lib.rs`), so running the browser suite twice in
+quick succession, or probing sign-up by hand alongside it, makes a signup fail
+with "Request allowance reached". That is the limiter working, not a
+regression; wait a minute and re-run.
+
+**Paused again at the user's request, 2026-11-08.** Do no further feature
+development until the user asks to resume. localhost:8082 is running the
+verified build.
+
+Earlier in the same session, before resuming: sign-in path aliases (above) in
+`crates/click-server/src/lib.rs`, covered by `real_stack.rs` which also asserts
+the alias does not shadow a real `/owner/{section}`.
+
 Reproduce checks (with Docker services running):
 
 ```sh
@@ -110,11 +236,11 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-On the original Mac, the working installed Chromium override is `/Users/anisulkibria/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell`. This path is machine-specific; on other devices install Playwright Chromium normally. Source `.env` for browser tests: owner/demo tests use the local operator CLI. Browser tests create their own test workspaces in the local development DB. Database integration tests create/drop isolated `click_it_*` databases. Do not delete arbitrary databases to clean up a failed test.
+On the original Mac, the working installed Chromium override is `/Users/anisulkibria/Library/Caches/ms-playwright/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium`. This path is machine-specific; on other devices install Playwright Chromium normally. Source `.env` for browser tests: owner/demo tests use the local operator CLI. Browser tests create their own test workspaces in the local development DB. Database integration tests create/drop isolated `click_it_*` databases. Do not delete arbitrary databases to clean up a failed test.
 
 ## Resume priorities — do not restart from scratch
 
-1. **Finish product hardening around existing workflows**: review all mutations for membership/role rechecks after row locks; account/password and suspension races; consistent HTML/API validation errors; handle report concurrency/rate limits cleanly; correct privilege-lost/no-op errors. Add targeted race/negative tests. Goal deletion exists as API only; goal/funnel edit UI/API remains missing. Invitations currently require manually sharing the link. Owner account profile/password/recovery/MFA UI is unfinished. Evaluate per-tenant query limits and bounded journey aggregation for very large sessions.
+1. **Finish product hardening around existing workflows — complete locally, 2026-11-08.** Goal/funnel editing/deletion, transactional workspace privilege rechecks, account/password/reset/promotion races, consistent HTML/API validation and overload errors, automatic invitation email queueing, owner profile/password/recovery/MFA UI, per-workspace report budgets and bounded journey aggregation are implemented and verified. Details and limits are in the completion section below. Production SMTP, distributed edge budgets and independent security/MFA review remain release gates under priorities 4–5.
 2. **Native Ghost/Vuuut and Vuuut-pro integration**: read docs/GHOST_INTEGRATION.md and re-inspect actual sibling code (not included in this standalone repo). Implement versioned idempotent provisioning, domain/lifecycle/entitlement synchronization, staff JWT/JWKS exchange with pinned issuers/audiences, server transactional CMS outboxes, retries/rotation/disconnect, tracker injection and native Admin reporting. Existing generic backend conversion endpoint/SDK is a foundation, not completed native integration. Never expose platform/integration credentials in browser content.
 3. **Remaining analytics breadth** from original brief: richer content/engagement/returning/cohort and period comparisons, expanded funnel options, newsletter-specific reports, additional attribution dimensions, ROI only when authoritative ad-spend data exists. Define metric semantics and exact tests before UI claims.
 4. **Production commercial validation**: operator-configured Stripe test-account checkout/portal/cancel/past-due/webhook scenarios, real SMTP verification/reset delivery and invitation mail, email/DNS/abuse policies, plan/downgrade edge cases, retention fulfillment monitoring. No live charges are authorized by this local project task.
@@ -123,6 +249,38 @@ On the original Mac, the working installed Chromium override is `/Users/anisulki
 
 External inputs eventually needed: actual deployment domain/TLS, MaxMind account/licensed Country MMDB, SMTP credentials, Stripe keys/price IDs/webhook secret, backup storage/secrets. Ask only when an actual next step requires them; continue independent code/test work first.
 
+## Priority 1 completed — 2026-11-08
+
+The user explicitly resumed and asked to complete Priority 1. Completed the partial work found in the working tree without discarding the earlier goal/funnel and workspace fixes.
+
+- **Account races:** customer password changes prove the current password after locking the user, then recheck that the session is still live and the account is not an owner. They invalidate older sessions and outstanding reset links. Profile updates and other-session revocation use the same guard. Both customer and owner login verify the locked password before creating sessions. Reset completion already serialized on the user; token requests now recheck owner status after the lock. Operator owner promotion takes that same lock and invalidates existing account tokens/customer sessions. Owner account and platform actions recheck session/grant under that lock too.
+- **Website verification races:** DNS lookup completion rechecks the current role/workspace status under the organization lock and commits only if both origin and challenge are unchanged. Origin updates compare the locked row, so a concurrent change cannot carry another domain’s verification or challenge across. Tests wait until the request actually reaches the contended lock before rotating the origin/challenge or downgrading the actor.
+- **Errors and request budgets:** malformed JSON/forms/UUIDs/query strings now use the JSON envelope. HTML navigations receive escaped, themed errors with dashboard/sign-in links. API/fetch clients keep JSON. Report overload uses 503 with Retry-After 2; the per-IP allowance uses 429 with Retry-After 60. Security and private/no-store headers cover early refusals and converted pages as well.
+- **Invitations:** invitation creation and email enqueueing commit together, using configured SMTP or the development private-file mailbox. API `emailed` means queued, not confirmed delivered. The UI reports queued delivery or the manual-sharing fallback. The original shareable fragment link remains available. No real external email delivery was performed.
+- **Owner security:** `/owner/account` is in the sidebar. Display name, password, sign-out-other-sessions, authenticator enrollment/confirmation, replacement recovery codes and disabling MFA work through real forms. Enrollment needs the password and a TOTP code within 15 minutes; ten random one-use recovery codes are shown once and stored hashed. Security changes need the current password and, when enabled, a fresh factor. MFA enrollment, replacement codes and disabling MFA revoke other sessions. Existing development accounts were not enrolled or changed.
+- **MFA sign-in:** after enrollment the password creates only a five-minute `owner_pending` audience/cookie, with five persisted attempts. It grants no owner or customer data access. A successful code consumes the step or recovery code and pending session in one transaction before issuing the full owner cookie. Code steps cannot be replayed. Owner logout clears and revokes pending/full owner sessions and preserves the customer portal.
+- **Owner recovery:** `/owner/forgot-password` queues a separate one-use 30-minute owner token. Reset still requires a fresh authenticator/recovery code when MFA is enabled, limits attempts to five, and invalidates all sessions/account tokens on success. Customer reset cannot recover owner accounts or consume owner tokens. Losing the authenticator and every recovery code requires an operator-assisted identity/recovery procedure; there is no email-only MFA bypass. Authenticator secrets are stored in private PostgreSQL (not application-encrypted); independent review, protected storage/backups and managed encryption remain production concerns documented in SECURITY.md.
+- **Report fairness and journeys:** four concurrent report requests per organization, sixteen per process, including read-key access. Permits are released on completion/error/cancellation and idle organizations leave the map. Journeys select the newest 25 sessions before aggregating, with `groupArraySorted(100)` retaining the earliest 100 ordered steps while preserving full event counts. Existing ClickHouse time/memory/result bounds remain. These budgets are per process, not distributed promises.
+- **Contracts and migrations:** additive PostgreSQL 0007–0009 introduce owner factors/recovery codes, the pending session audience, token purpose and attempt counters. OpenAPI, API specification, security/deployment docs and this handoff are updated. Goal/funnel PATCH contracts are now documented too.
+
+Verification: formatting, Clippy with warnings denied, **17 unit tests + 11 real-database integration tests** with `--include-ignored`, npm clean install/check/build, and **6/6 Playwright scenarios**. The added integration suite covers concurrent password writes (only one succeeds), transactional invitation mail, report budget release, a reverse-ordered 1,200-event session with duplicate replay (count 1,200; exactly the earliest 100 steps), malformed/overload HTML/JSON, MFA replay/single-use recovery codes, challenge attempt exhaustion, reset audience isolation, preserved MFA and session revocation. The new browser scenario runs a temporary local server with the same databases and its own per-IP limiter, stops it afterwards, and exercises profile/enrollment/login/code replacement/password/disable while a customer stays signed in. Desktop/390px owner-security screenshots were inspected. Build restarted on 8082; persistent databases and existing local credentials are preserved.
+
+Production external-service/load/distributed-budget/security/recovery-drill gates are not claimed complete. The next unfinished feature priority is **2: native Ghost/Vuuut and Vuuut-pro integration**; re-read the integration contract and actual sibling code before changing them.
+
+## Owner panel typography — 2026-11-08
+
+At the user's request, increased text across `/owner/dashboard`, `/owner/users`, `/owner/workspaces`, `/owner/websites`, `/owner/subscriptions`, `/owner/delivery` and `/owner/audit`. Their shared page wrapper now has `owner-console`; scoped CSS uses 16px row/body/control text, 14px table headers/supporting labels/buttons and 22px panel headings, with more row spacing and 44px minimum button height. These sizes also apply on phones. Customer pages retain their own styles.
+
+Verified computed text sizes and no document overflow on all seven pages at 1440px and 390px; inspected desktop/phone dashboard screenshots. The existing owner navigation/session Playwright scenario passed. Formatting, Clippy with warnings denied, all 17 unit tests and the Rust build passed; 11 database integration tests were intentionally skipped in this presentation-only run and are not claimed as newly passed. Restarted the updated app on 8082, preserving accounts and data.
+
+Owner typography follow-up: the user found the first increase too large. Reduced owner body/table/control text to 14px, supporting labels/table headers/buttons to 13px, panel headings to 20px and row padding to 14px. This supersedes the larger sizes above.
+
+Further owner typography adjustment: the user requested another small reduction. Current sizes are 13px body/table/control text, 12px supporting labels/table headers/buttons, 19px panel headings and 12px vertical table-cell padding. These supersede the earlier typography sizes.
+
+## Customer sign-in outage recovered — 2026-11-08
+
+The user reported `/signin` failing. The page returned 200, but `/readyz` returned 500 and logs showed PostgreSQL pool timeouts. Docker Desktop was stopped, leaving both development databases unavailable. Started Docker Desktop and brought up the existing development Compose stack without removing volumes. Both containers are healthy, readiness is 200, and the database retains all 57 accounts including the original customer/owner. Verified the actual customer form in Chromium with an existing browser-test customer: sign-in, redirect, authenticated `/v1/me` and logout passed. No account/password changes or authentication-code changes were needed. Keep Docker running; `./run.sh` starts the complete stack if it has stopped.
+
 ## Source map
 
 - `crates/click-core`: validation, identity hashing, trusted proxy/GeoIP, roles.
@@ -130,7 +288,7 @@ External inputs eventually needed: actual deployment domain/TLS, MaxMind account
 - `crates/click-server/src/analytics.rs`, `insights.rs`: advanced query API and Rust report UI.
 - `workspace.rs`, `manage.rs`, `settings.rs`: organizations/team/credentials/account and UI.
 - `billing.rs`, `mail.rs`, `jobs.rs`: providers/recovery, exports/deletion/retention workers.
-- `auth.rs`, `owner.rs`, `dashboard.rs`, `landing.rs`, `lib.rs`, `main.rs`: auth, portals, routes/middleware/startup.
+- `auth.rs`, `owner.rs`, `owner_security.rs`, `dashboard.rs`, `landing.rs`, `lib.rs`, `main.rs`: auth, portals, routes/middleware/startup.
 - `demo.rs`: isolated local sample seeder.
 - `crates/click-sdk`, `tracker/src/{index,api,vitals}.ts`, `tracker/dist`: SDKs and bundles.
 - `migrations/{postgres,clickhouse}`: additive schemas. `dashboard`: scoped CSS/landing templates.

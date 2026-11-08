@@ -612,7 +612,22 @@ async fn apply_action(
                 },
             )
             .await?;
-            ("team",Some(invite.accept_url),"Share this invitation with your teammate. They must sign in with the invited email.")
+            // Say which of the two happened. Telling someone to share a link
+            // that has already been emailed invites a duplicate; telling them
+            // nothing when no mail went out leaves the invitation stranded.
+            if invite.emailed {
+                (
+                    "team",
+                    Some(invite.accept_url),
+                    "Invitation queued for email delivery. They must sign in with the invited email. The link below works too, if you would rather pass it on yourself.",
+                )
+            } else {
+                (
+                    "team",
+                    Some(invite.accept_url),
+                    "Email delivery is not configured, so share this invitation yourself. They must sign in with the invited email.",
+                )
+            }
         }
         "revoke_invitation" => {
             workspace::revoke_invitation(&s, &h, id(org)?, id(input.target_id)?).await?;

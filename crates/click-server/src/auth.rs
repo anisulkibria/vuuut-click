@@ -73,17 +73,6 @@ pub async fn user(state: &AppState, headers: &HeaderMap) -> AppResult<User> {
     sqlx::query_as("SELECT u.id,u.email FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.token_hash=$1 AND s.expires_at>now() AND s.audience='user' AND NOT EXISTS (SELECT 1 FROM platform_owners p WHERE p.user_id=u.id)")
         .bind(digest(&token)).fetch_optional(&state.store.pg).await?.ok_or_else(ApiError::unauthorized)
 }
-pub async fn create_session(state: &AppState, id: Uuid) -> AppResult<String> {
-    let token = secret();
-    sqlx::query(
-        "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '7 days')",
-    )
-    .bind(digest(&token))
-    .bind(id)
-    .execute(&state.store.pg)
-    .await?;
-    Ok(token)
-}
 pub async fn register(state: &AppState, body: Credentials) -> AppResult<(String, User)> {
     if !state.config.allow_localhost && !state.mail.available() {
         return Err(ApiError {
@@ -176,55 +165,145 @@ pub async fn register(state: &AppState, body: Credentials) -> AppResult<(String,
     Ok((token, user))
 }
 pub async fn login(state: &AppState, body: Credentials) -> AppResult<(String, User)> {
-    let user = verify_credentials(state, body).await?;
+    let mut tx = state.store.pg.begin().await?;
+    let user = verify_locked_credentials(state, &mut tx, body).await?;
     let is_owner: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM platform_owners WHERE user_id=$1)")
             .bind(user.id)
-            .fetch_one(&state.store.pg)
+            .fetch_one(&mut *tx)
             .await?;
     if is_owner {
         return Err(ApiError::forbidden(
             "Use the owner sign-in at /owner/signin",
         ));
     }
-    Ok((create_session(state, user.id).await?, user))
+    let token = secret();
+    sqlx::query(
+        "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '7 days')",
+    )
+    .bind(digest(&token))
+    .bind(user.id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok((token, user))
 }
 
-/// Password verification alone never creates a session or grants an authentication audience.
-pub(crate) async fn verify_credentials(state: &AppState, body: Credentials) -> AppResult<User> {
-    if body.password.len() > 256 || body.email.len() > 254 {
-        return Err(ApiError::unauthorized());
+pub(crate) async fn hash_password(state: &AppState, password: String) -> AppResult<String> {
+    if !(12..=256).contains(&password.len()) {
+        return Err(ApiError::bad("Password must contain 12–256 characters"));
     }
     let _permit = state
         .password_slots
         .acquire()
         .await
         .map_err(ApiError::internal)?;
+    tokio::task::spawn_blocking(move || {
+        Argon2::default()
+            .hash_password(password.as_bytes(), &SaltString::generate(&mut OsRng))
+            .map(|h| h.to_string())
+            .map_err(|_| anyhow::anyhow!("Password hashing failed"))
+    })
+    .await
+    .map_err(ApiError::internal)?
+    .map_err(ApiError::internal)
+}
+
+pub(crate) async fn verify_locked_credentials(
+    state: &AppState,
+    tx: &mut sqlx::PgConnection,
+    body: Credentials,
+) -> AppResult<User> {
+    if body.email.len() > 254 || body.password.len() > 256 {
+        return Err(ApiError::unauthorized());
+    }
     let row: Option<(Uuid, String, String)> =
-        sqlx::query_as("SELECT id,email,password_hash FROM users WHERE email=$1")
+        sqlx::query_as("SELECT id,email,password_hash FROM users WHERE email=$1 FOR UPDATE")
             .bind(body.email.trim().to_lowercase())
-            .fetch_optional(&state.store.pg)
+            .fetch_optional(tx)
             .await?;
-    // Run a real Argon2 verification for missing users as well, avoiding a trivial timing oracle.
     let (id, email, hash) = row.unwrap_or((
         Uuid::nil(),
         String::new(),
         state.dummy_password_hash.to_string(),
     ));
-    let valid = tokio::task::spawn_blocking(move || {
-        PasswordHash::new(&hash).is_ok_and(|hash| {
-            Argon2::default()
-                .verify_password(body.password.as_bytes(), &hash)
-                .is_ok()
-        })
-    })
-    .await
-    .map_err(ApiError::internal)?;
-    if !valid || id.is_nil() {
+    if !verify_against_hash(state, hash, body.password).await? || id.is_nil() {
         return Err(ApiError::unauthorized());
     }
     Ok(User { id, email })
 }
+
+/// Password verification alone never creates a session or grants an authentication audience.
+/// Verify a password against a hash already read from the database.
+///
+/// Exists so a caller that has the row — and, crucially, has it locked — can
+/// prove the password *at write time* rather than trusting a check made
+/// before the transaction opened. See `manage::change_password`.
+pub(crate) async fn verify_against_hash(
+    state: &AppState,
+    hash: String,
+    password: String,
+) -> AppResult<bool> {
+    if password.len() > 256 {
+        return Ok(false);
+    }
+    let _permit = state
+        .password_slots
+        .acquire()
+        .await
+        .map_err(ApiError::internal)?;
+    tokio::task::spawn_blocking(move || {
+        PasswordHash::new(&hash).is_ok_and(|parsed| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed)
+                .is_ok()
+        })
+    })
+    .await
+    .map_err(ApiError::internal)
+}
+
+/// Serialize customer account writes with reset, login and owner promotion.
+pub(crate) async fn lock_customer(
+    tx: &mut sqlx::PgConnection,
+    h: &HeaderMap,
+    user: Uuid,
+) -> AppResult<String> {
+    let hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id=$1 FOR UPDATE")
+        .bind(user)
+        .fetch_one(&mut *tx)
+        .await?;
+    let token = cookie_value(h, "click_session").ok_or_else(ApiError::unauthorized)?;
+    let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sessions WHERE user_id=$1 AND token_hash=$2 AND audience='user' AND expires_at>now() AND NOT EXISTS(SELECT 1 FROM platform_owners WHERE user_id=$1))").bind(user).bind(digest(&token)).fetch_one(tx).await?;
+    if !valid {
+        return Err(ApiError::unauthorized());
+    }
+    Ok(hash)
+}
+
+/// Authorize a read *and* take the workspace's analytical-query slot.
+///
+/// The entry point for every report that queries ClickHouse, so one workspace
+/// cannot occupy the whole process's query budget — see
+/// [`crate::TenantLoad`]. The returned permit must be held for as long as the
+/// query runs, which is what binding it for the body of the handler does.
+pub async fn authorize_report(
+    state: &AppState,
+    headers: &HeaderMap,
+    site_id: Uuid,
+) -> AppResult<(Website, Role, crate::TenantPermit)> {
+    let (site, role) = authorize_site(state, headers, site_id, false).await?;
+    let permit = state
+        .tenant_queries
+        .try_acquire(site.organization_id)
+        .ok_or(ApiError {
+            status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            message:
+                "This workspace already has several reports running. Please try again in a moment.",
+        })?;
+    Ok((site, role, permit))
+}
+
 pub async fn authorize_site(
     state: &AppState,
     headers: &HeaderMap,

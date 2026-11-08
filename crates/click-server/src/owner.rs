@@ -39,7 +39,7 @@ fn sign_in_page(h: &HeaderMap, error: Option<&str>) -> Html<String> {
         "Owner sign in",
         h,
         &format!(
-            r#"<div class="auth-layout"><section class="auth-story"><a class="brand" href="/owner"><span class="brand-mark">v<span>↗</span></span><span>vuuut<span class="brand-sub">CLICK</span></span></a><div><span class="eyebrow">YOUR PLATFORM. YOUR PERSPECTIVE.</span><h1>A place for<br>the bigger picture.</h1><p>Oversee your analytics platform<br>from your own space.</p></div><p class="auth-foot">Vuuut Click · Owner console</p></section><main id="main" class="auth-main"><div class="auth-card"><span class="pill">Platform owner</span><h2>Welcome to your console.</h2><p>Sign in with your platform owner account.</p>{error}<form action="/owner/auth/login" method="post" class="stack"><label>Email address<input type="email" name="email" autocomplete="username" maxlength="254" required></label><label>Password<input type="password" name="password" autocomplete="current-password" maxlength="256" required></label><button class="btn primary">Sign in as owner</button></form><p class="auth-other">Looking for your website analytics? <a href="/signin">User sign in</a></p></div></main></div>"#
+            r#"<div class="auth-layout"><section class="auth-story"><a class="brand" href="/owner"><span class="brand-mark">v<span>↗</span></span><span>vuuut<span class="brand-sub">CLICK</span></span></a><div><span class="eyebrow">YOUR PLATFORM. YOUR PERSPECTIVE.</span><h1>A place for<br>the bigger picture.</h1><p>Oversee your analytics platform<br>from your own space.</p></div><p class="auth-foot">Vuuut Click · Owner console</p></section><main id="main" class="auth-main"><div class="auth-card"><span class="pill">Platform owner</span><h2>Welcome to your console.</h2><p>Sign in with your platform owner account.</p>{error}<form action="/owner/auth/login" method="post" class="stack"><label>Email address<input type="email" name="email" autocomplete="username" maxlength="254" required></label><label>Password<input type="password" name="password" autocomplete="current-password" maxlength="256" required></label><button class="btn primary">Sign in as owner</button></form><p><a href="/owner/forgot-password">Forgot your owner password?</a></p><p class="auth-other">Looking for your website analytics? <a href="/signin">User sign in</a></p></div></main></div>"#
         ),
     )
 }
@@ -53,14 +53,15 @@ pub async fn login(
     Form(body): Form<auth::Credentials>,
 ) -> AppResult<Response> {
     auth::csrf(&s, &h)?;
-    let user = match auth::verify_credentials(&s, body).await {
+    let mut tx = s.store.pg.begin().await?;
+    let user = match auth::verify_locked_credentials(&s, &mut tx, body).await {
         Ok(user) => user,
         Err(e) => return Ok((e.status, sign_in_page(&h, Some(e.message))).into_response()),
     };
     let granted: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM platform_owners WHERE user_id=$1)")
             .bind(user.id)
-            .fetch_one(&s.store.pg)
+            .fetch_one(&mut *tx)
             .await?;
     if !granted {
         return Ok((
@@ -69,47 +70,63 @@ pub async fn login(
         )
             .into_response());
     }
+    let pending: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM owner_security WHERE user_id=$1 AND confirmed_at IS NOT NULL)",
+    )
+    .bind(user.id)
+    .fetch_one(&mut *tx)
+    .await?;
     let token = auth::secret();
-    sqlx::query("INSERT INTO sessions(token_hash,user_id,expires_at,audience) VALUES($1,$2,now()+interval '8 hours','owner')").bind(click_core::digest(&token)).bind(user.id).execute(&s.store.pg).await?;
-    let secure = if s.config.secure_cookie {
-        "; Secure"
+    let (audience, ttl) = if pending {
+        ("owner_pending", 300)
     } else {
-        ""
+        ("owner", 28800)
     };
+    sqlx::query("INSERT INTO sessions(token_hash,user_id,expires_at,audience) VALUES($1,$2,now()+make_interval(secs=>$3::int),$4)")
+        .bind(click_core::digest(&token)).bind(user.id).bind(ttl).bind(audience).execute(&mut *tx).await?;
+    tx.commit().await?;
     Ok((
         [(
             header::SET_COOKIE,
-            format!(
-                "{COOKIE}={token}; Path=/owner; HttpOnly; SameSite=Strict; Max-Age=28800{secure}"
-            ),
+            crate::owner_security::cookie(&s, &token, pending),
         )],
-        Redirect::to("/owner/dashboard"),
+        Redirect::to(if pending {
+            "/owner/auth/verify"
+        } else {
+            "/owner/dashboard"
+        }),
     )
         .into_response())
 }
 
 pub async fn logout(State(s): State<AppState>, h: HeaderMap) -> AppResult<Response> {
     auth::csrf(&s, &h)?;
-    if let Some(token) = auth::cookie_value(&h, COOKIE) {
-        sqlx::query("DELETE FROM sessions WHERE token_hash=$1 AND audience='owner'")
-            .bind(click_core::digest(&token))
-            .execute(&s.store.pg)
-            .await?;
+    for (name, audience) in [(COOKIE, "owner"), ("click_owner_pending", "owner_pending")] {
+        if let Some(token) = auth::cookie_value(&h, name) {
+            sqlx::query("DELETE FROM sessions WHERE token_hash=$1 AND audience=$2")
+                .bind(click_core::digest(&token))
+                .bind(audience)
+                .execute(&s.store.pg)
+                .await?;
+        }
     }
     let secure = if s.config.secure_cookie {
         "; Secure"
     } else {
         ""
     };
-    Ok((
-        [(
+    let mut headers = HeaderMap::new();
+    for name in [COOKIE, "click_owner_pending"] {
+        headers.append(
             header::SET_COOKIE,
-            format!("{COOKIE}=; Path=/owner; HttpOnly; SameSite=Strict; Max-Age=0{secure}"),
-        )],
-        Redirect::to("/owner/signin"),
-    )
-        .into_response())
+            format!("{name}=; Path=/owner; HttpOnly; SameSite=Strict; Max-Age=0{secure}")
+                .parse()
+                .unwrap(),
+        );
+    }
+    Ok((headers, Redirect::to("/owner/signin")).into_response())
 }
+
 pub async fn me(State(s): State<AppState>, h: HeaderMap) -> AppResult<Json<auth::User>> {
     Ok(Json(authenticated_owner(&s, &h).await?))
 }
@@ -126,8 +143,8 @@ pub async fn action(
     Form(input): Form<OwnerAction>,
 ) -> AppResult<Redirect> {
     auth::csrf(&s, &h)?;
-    let owner = authenticated_owner(&s, &h).await?;
     let mut tx = s.store.pg.begin().await?;
+    let (owner, _) = crate::owner_security::lock_owner(&h, &mut tx).await?;
     let status: Option<String> =
         sqlx::query_scalar("SELECT status FROM organizations WHERE id=$1 FOR UPDATE")
             .bind(input.organization_id)
@@ -217,7 +234,7 @@ const SECTIONS: &[(&str, &str, &str)] = &[
     ("audit", "Audit log", "A record of what changed."),
 ];
 
-fn owner_shell(h: &HeaderMap, email: &str, section: &str, body: String) -> Html<String> {
+pub(crate) fn owner_shell(h: &HeaderMap, email: &str, section: &str, body: String) -> Html<String> {
     let mut navigation = String::new();
     for (key, label, _) in SECTIONS {
         let glyph = if *key == "dashboard" {
@@ -234,7 +251,12 @@ fn owner_shell(h: &HeaderMap, email: &str, section: &str, body: String) -> Html<
             *key == section,
         ));
     }
-    let utilities = navigation_link("/v1/openapi.json", "API reference", "info", false)
+    let utilities = navigation_link(
+        "/owner/account",
+        "Account & security",
+        "settings",
+        section == "account",
+    ) + &navigation_link("/v1/openapi.json", "API reference", "info", false)
         + r#"<a href="/dashboard" class="nav-item" aria-label="User dashboard" target="_blank" rel="noopener"><span aria-hidden="true">↗</span><span>User dashboard</span></a>"#;
     with_sidebar(
         h,
@@ -530,7 +552,7 @@ async fn render_page(s: &AppState, h: &HeaderMap, section: &str, page: u32) -> A
         _ => "Activity recorded in your platform audit trail.",
     };
     let body = format!(
-        r#"<header class="topbar"><div class="breadcrumb">Your platform <span>/</span> {label}</div><span class="status"><span class="tiny-dot"></span> Owner console</span></header><div class="page"><div class="page-heading"><div><span class="eyebrow">PLATFORM OWNER</span><h1>{title}</h1><p>{description}</p></div><a class="btn outlined" href="/owner/{section}?page={page}">↻ Refresh</a></div>{content}<footer class="page-footer"><span><span class="tiny-dot"></span> A clear view of your platform.</span></footer></div>"#
+        r#"<header class="topbar"><div class="breadcrumb">Your platform <span>/</span> {label}</div><span class="status"><span class="tiny-dot"></span> Owner console</span></header><div class="page owner-console"><div class="page-heading"><div><span class="eyebrow">PLATFORM OWNER</span><h1>{title}</h1><p>{description}</p></div><a class="btn outlined" href="/owner/{section}?page={page}">↻ Refresh</a></div>{content}<footer class="page-footer"><span><span class="tiny-dot"></span> A clear view of your platform.</span></footer></div>"#
     );
     Ok(owner_shell(h, &owner.email, section, body).into_response())
 }

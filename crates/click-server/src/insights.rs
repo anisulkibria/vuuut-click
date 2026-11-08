@@ -58,7 +58,7 @@ pub async fn page(
     let Some(id) = q.site.or_else(|| sites.first().map(|w| w.id)) else {
         return Ok(Redirect::to("/websites").into_response());
     };
-    let (site, role) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, role, _queries) = auth::authorize_report(&s, &h, id).await?;
     let view = q.view.as_deref().unwrap_or("funnels");
     let (_, label, title) = VIEWS
         .iter()
@@ -111,7 +111,33 @@ pub async fn page(
                 let mut body = table(&["Step", "Sessions", "Conversion", "Drop-off"], &rows);
                 body.push_str(&format!("<p class=muted>Ordered within {} hours. Counts are distinct sessions, with a strictly increasing event time.</p>",report.window_seconds/3600));
                 if role.can_edit_goals() {
-                    body.push_str(&format!(r#"<form action="/insights/action" method="post"><input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{id}"><input type="hidden" name="funnel" value="{}"><button class="btn outlined small">Remove funnel</button></form>"#,report.id));
+                    // Pre-filled with the funnel as it stands, in the same
+                    // `kind:value` lines the create form accepts, so fixing a
+                    // step is editing the steps rather than rebuilding the
+                    // funnel from memory. Folded away by default: the report
+                    // is what the panel is for.
+                    let steps = report
+                        .steps
+                        .iter()
+                        .map(|step| format!("{}:{}", esc(&step.kind), esc(&step.value)))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let windows = [(3600, "1 hour"), (86400, "24 hours"), (604800, "7 days")]
+                        .iter()
+                        .map(|(seconds, label)| {
+                            let selected = if *seconds == report.window_seconds {
+                                " selected"
+                            } else {
+                                ""
+                            };
+                            format!(r#"<option value="{seconds}"{selected}>{label}</option>"#)
+                        })
+                        .collect::<String>();
+                    body.push_str(&format!(
+                        r#"<details class="row-edit"><summary>Edit this funnel</summary><form action="/insights/action" method="post" class="stack"><input type="hidden" name="action" value="update"><input type="hidden" name="site" value="{id}"><input type="hidden" name="funnel" value="{funnel}"><label>Funnel name<input name="name" maxlength="100" required value="{name}"></label><label>Steps, one per line<textarea name="steps" rows="4" required maxlength="9000">{steps}</textarea></label><p class="muted">Use <code>page:/your-path</code> or <code>event:your_event</code>. Include 2–8 steps.</p><label>Conversion window<select name="window_seconds">{windows}</select></label><button class="btn primary">Save funnel</button></form></details><form action="/insights/action" method="post" onsubmit="return confirm('Remove this funnel? Your sessions and events are not affected.')"><input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{id}"><input type="hidden" name="funnel" value="{funnel}"><button class="btn outlined small">Remove funnel</button></form>"#,
+                        funnel = report.id,
+                        name = esc(&report.name),
+                    ));
                 }
                 content.push_str(&panel(&report.name, &body));
             }
@@ -241,6 +267,28 @@ fn quality(value: f64, good: f64, poor: f64) -> &'static str {
         "Poor"
     }
 }
+/// The textarea's `kind:value` lines, as funnel steps.
+///
+/// Shared by create and update so the two cannot disagree about what a step
+/// line means; `analytics::validate` then has the final say on the values.
+fn parse_steps(steps: Option<String>) -> AppResult<Vec<FunnelStep>> {
+    steps
+        .ok_or_else(|| ApiError::bad("Add funnel steps"))?
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let (kind, value) = line
+                .trim()
+                .split_once(':')
+                .ok_or_else(|| ApiError::bad("Use page:/path or event:name for each step"))?;
+            Ok(FunnelStep {
+                kind: kind.trim().into(),
+                value: value.trim().into(),
+            })
+        })
+        .collect()
+}
+
 #[derive(Deserialize)]
 pub struct Action {
     action: String,
@@ -257,25 +305,28 @@ pub async fn action(
 ) -> AppResult<Redirect> {
     match input.action.as_str() {
         "create" => {
-            let steps = input
-                .steps
-                .ok_or_else(|| ApiError::bad("Add funnel steps"))?
-                .lines()
-                .filter(|line| !line.trim().is_empty())
-                .map(|line| {
-                    let (kind, value) = line.trim().split_once(':').ok_or_else(|| {
-                        ApiError::bad("Use page:/path or event:name for each step")
-                    })?;
-                    Ok(FunnelStep {
-                        kind: kind.trim().into(),
-                        value: value.trim().into(),
-                    })
-                })
-                .collect::<AppResult<Vec<_>>>()?;
+            let steps = parse_steps(input.steps)?;
             analytics::create_funnel(
                 &s,
                 &h,
                 input.site,
+                FunnelInput {
+                    name: input
+                        .name
+                        .ok_or_else(|| ApiError::bad("Name your funnel"))?,
+                    steps,
+                    window_seconds: input.window_seconds.unwrap_or(86400),
+                },
+            )
+            .await?;
+        }
+        "update" => {
+            let steps = parse_steps(input.steps)?;
+            analytics::update_funnel(
+                &s,
+                &h,
+                input.site,
+                input.funnel.ok_or_else(ApiError::not_found)?,
                 FunnelInput {
                     name: input
                         .name

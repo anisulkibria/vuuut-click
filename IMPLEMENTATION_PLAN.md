@@ -7,7 +7,7 @@ This is a new application. Production release remains gated on the items below.
 1. **Inspection and design** — inspected Vuuut, Vuuut-pro and upstream Tinybird. Architecture, schema, security and API decisions documented. Complete.
 2. **Real analytics vertical slice — complete for local development** — register account → create website → verify domain → browser tracker → validation and local MMDB enrichment → transactional durable acceptance → retrying worker → ClickHouse → authenticated overview/country dashboard. Verified using real PostgreSQL/ClickHouse and browser tests, including outage/replay correctness, isolation and trusted forwarding. Production geolocation still requires an operator-supplied licensed MMDB.
 3. **Basic SaaS foundation — implemented** — registration/login/logout, memberships and RBAC, website credentials, transactional quota metering, event-match goals, scoped APIs, setup, light/dark/system themes. Roles and cross-tenant negative tests pass. Team invitations, organization lifecycle and account/credential/privacy settings are now implemented and tested locally; production hardening remains gated.
-4. **Advanced analytics — standalone checkpoint implemented** — ordered session funnels, journeys, first/last/non-direct net revenue attribution, Web Vitals percentiles, exports, per-tenant deletion/retention. Real-database and browser validation completed. Newsletter event ingestion exists; specialized newsletter dashboards, broader engagement/cohort reports and edit flows remain pending.
+4. **Advanced analytics — standalone checkpoint implemented** — ordered session funnels, journeys, first/last/non-direct net revenue attribution, Web Vitals percentiles, exports, per-tenant deletion/retention. Real-database and browser validation completed. Newsletter event ingestion exists; specialized newsletter dashboards, broader engagement/cohort reports remain pending; goal/funnel editing is complete.
 5. **Ghost integration** — typed adapter client and inspected integration contract; transactional CMS outbox, provisioning callbacks, JWT/JWKS delegated access, tenant lifecycle, native Admin UI. Pending. Sibling apps remain unchanged until adapters and failure recovery are validated.
 6. **Commercial operations — adapters implemented, release gates pending** — Stripe checkout/portal/signed webhooks and entitlement dedup, account verification/reset, team invitation links, private local/SMTP mail and owner management controls implemented and locally tested. Real SMTP/payment-account validation, distributed abuse controls, optional NATS scaling, OTel, monitoring, encrypted backups/restore drills, scanning and 1M/10M/100M benchmarks remain pending.
 
@@ -76,8 +76,86 @@ User asked to complete the main SaaS, then requested demo data, then explicitly 
 
 ## Remaining work after the pause
 
-Follow `CONTINUE.md` priorities. Native Ghost/Vuuut and Vuuut-pro provisioning/SSO/CMS transactional adapters are not implemented. Further analytics breadth/edit UI, concurrency/security hardening, owner recovery/MFA, real external-service validation and operational release gates remain. Do not claim production readiness. Git transfers source/docs only; databases, accounts/passwords, `.env`, sessions and demo rows require a fresh setup or separate secure backup transfer.
+Follow `CONTINUE.md` priorities. Native Ghost/Vuuut and Vuuut-pro provisioning/SSO/CMS transactional adapters are not implemented. Further analytics breadth, distributed security budgets, independent MFA/security review, real external-service validation and operational release gates remain. Do not claim production readiness. Git transfers source/docs only; databases, accounts/passwords, `.env`, sessions and demo rows require a fresh setup or separate secure backup transfer.
 
 ## Final checkpoint verification — 2026-11-08
 
 Formatting and Clippy passed, all 9 unit and 5 real-stack integration tests passed with --include-ignored, TypeScript check/build passed, and all 5 browser tests passed in one combined run. Shell syntax, OpenAPI JSON and production Compose configuration validation passed. Source candidates were checked for accidental copies of the private local account passwords: none found. Production image/public deployment/external SMTP/real Stripe/load/security/restore gates were not performed. User-requested pause is now in effect; continuation instructions and full requirements are tracked in the repository.
+
+## Goal and funnel editing, and in-transaction privilege rechecks (2026-11-08)
+
+Resumed at the user's request, against priority 1 of the handoff.
+
+- `PATCH /v1/websites/{id}/goals/{goal}` and `PATCH
+  /v1/websites/{id}/funnels/{funnel}` edit a goal's name and event, and a
+  funnel's name, steps and conversion window. Both were previously
+  create-and-delete only, so correcting either meant losing it and rebuilding.
+- Events & goals gained a per-goal edit disclosure and a Remove button;
+  deletion had existed as an API only. Advanced analytics → Funnels gained an
+  edit disclosure pre-filled with the funnel's current steps. HTML forms post
+  to `/goals/action` and `/insights/action`, because a browser form cannot send
+  PATCH.
+- `workspace::lock_editor` now guards every goal and funnel mutation: it holds
+  the organization row, refuses a workspace that is not active, and re-reads
+  the actor's role through `click_core::Role::can_edit_goals`. This replaces a
+  bare `SELECT … FOR UPDATE` plus a hardcoded `role IN (…)` list in the two
+  create paths, and adds the check to the two delete paths, which had none.
+  It closes a hole where a suspended workspace could still create and delete
+  goals and funnels, since `authorize_site` never consulted
+  `organizations.status`.
+- Verified: fmt and Clippy clean with warnings denied; 9 unit + 5 real-database
+  integration tests passed; 5/5 Playwright tests, with the analytics spec
+  driving the new forms in a real browser. The race and suspension assertions
+  were confirmed to fail when `lock_editor` is removed.
+- Not done, and still priority 1: the same recheck review across website,
+  credential, team, billing and account mutations; invitation email; owner
+  account profile/password/recovery/MFA UI.
+
+## In-transaction privilege rechecks across the remaining mutations (2026-11-08)
+
+Generalized the goal/funnel guard into `workspace::lock_member(tx, org, actor,
+allow)`, which holds the organization row, refuses a workspace that is not
+active, and re-reads the actor's role through the same `Role` predicate the
+pre-transaction check used. `lock_editor` is the goal/funnel wrapper;
+`lock_member_even_if_suspended` is the explicit exception.
+
+Closed:
+
+- `retention` reported success while changing nothing — its membership test was
+  an `EXISTS` inside the `UPDATE`, so a role lost in the race window changed no
+  rows yet returned `Ok(())` and wrote an audit entry claiming the change.
+- `issue_key` and `update_website` worked on a suspended workspace, so a
+  suspension could be worked around by issuing a credential.
+- `queue_export` never re-read the membership, so a removed member could queue
+  an export of the whole workspace's data.
+- `checkout` never re-checked ownership inside its transaction.
+
+Deliberately exempt from the active-workspace requirement: `checkout` (paying
+is how a past-due workspace recovers) and `delete_site`/`delete_workspace`
+(erasure must remain possible). Deliberately untouched: the background workers
+and the Stripe webhook, which have no actor, and `owner::action`, which is how
+suspension and reactivation happen.
+
+Verified: fmt and Clippy clean with warnings denied; 9 unit + 5 real-database
+integration tests passed; 5/5 Playwright. The retention no-op reproduces only
+as a lock-contended race, so its test holds the organization row while the
+request waits; both it and the suspension refusals were confirmed to fail when
+the fix is reverted.
+
+Paused at the user's request after this checkpoint.
+
+## Priority 1 complete locally — 2026-11-08
+
+The user resumed and asked to finish Priority 1. Completed invitation email queueing, locked account/password/session/reset/promotion authorization, common HTML/API errors (including extractor rejections), retry hints, four-report-request workspace budgets and bounded 100-step journey aggregation after selecting 25 sessions. Added owner profile/password/session/MFA/recovery forms at `/owner/account` and separate owner recovery under `/owner/account/reset`. MFA challenges have a separate five-minute audience and five persisted attempts; TOTP steps/recovery codes are single use. Recovery preserves MFA and revokes sessions/tokens. Existing accounts remain unchanged. Additive migrations 0007–0009; contracts/security/deployment/handoff updated.
+
+Verification: fmt/Clippy, 17 unit tests + 11 real-database integration tests with no ignored tests skipped, npm ci/check/build, and 6/6 Playwright scenarios. New coverage includes password contention, transactional invite mail, per-workspace budgets, ordered/deduplicated 1,200-event journeys capped at 100 steps, malformed/overload errors, contended website origin/DNS verification and role changes, MFA enrollment/replay/recovery/attempt limits/audience isolation and UI lifecycle alongside an independent customer session. Owner security screenshots inspected; local app remains usable on 8082. See CONTINUE.md for details and actual limits.
+
+Earlier entries about unfinished Priority 1 items and pauses are historical. Priority 2 native integration remains unfinished. SMTP delivery against a real provider, distributed budgets, independent security/MFA review, protected database/backups, production deployment/load/restore and commercial release gates remain required. No production-readiness claim.
+
+## Owner panel text sizing — 2026-11-08
+
+Raised the seven owner overview/directory pages from 9px headers and 11px rows to 14px headers and 16px rows, with 16px form controls/body text, 22px panel headings, readable supporting labels and more row spacing. Scoped to `owner-console`; phone text stays readable and tables scroll within their panels. All seven pages passed computed-size and overflow checks at desktop/390px; screenshots inspected; existing owner browser scenario passed. Formatting/Clippy, 17 unit tests and build passed. Database integration tests were not rerun for this presentation change. Updated local server is running on 8082.
+
+Owner typography adjustment at the user’s request: reduced the first increase to 14px body/rows/controls, 13px labels/headers/buttons and 20px panel headings, with slightly tighter row padding.
+
+Further owner typography reduction requested by the user: 13px body/rows/controls, 12px labels/headers/buttons, 19px panel headings and 12px vertical row padding.

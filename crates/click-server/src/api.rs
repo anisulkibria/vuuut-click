@@ -219,12 +219,39 @@ pub async fn verify_website(s: &AppState, h: &HeaderMap, id: Uuid) -> AppResult<
     }) {
         return Err(ApiError::bad("DNS verification challenge does not match"));
     }
-    sqlx::query("UPDATE websites SET verified_at=now() WHERE id=$1")
-        .bind(id)
-        .execute(&s.store.pg)
-        .await?;
+    confirm_website_verification(s, h, &site).await
+}
+
+/// Commit a successful DNS lookup only for the exact origin and challenge
+/// that were looked up. Network I/O must not hold workspace locks.
+pub async fn confirm_website_verification(
+    s: &AppState,
+    h: &HeaderMap,
+    site: &Website,
+) -> AppResult<()> {
+    auth::csrf(s, h)?;
+    let user = auth::user(s, h).await?;
+    let mut tx = s.store.pg.begin().await?;
+    crate::workspace::lock_member(&mut tx, site.organization_id, user.id, Role::can_manage).await?;
+    let result=sqlx::query("UPDATE websites SET verified_at=now() WHERE id=$1 AND organization_id=$2 AND origin=$3 AND verification_token=$4 AND deletion_requested_at IS NULL")
+        .bind(site.id).bind(site.organization_id).bind(&site.origin).bind(&site.verification_token).execute(&mut *tx).await?;
+    if result.rows_affected() != 1 {
+        return Err(ApiError::conflict(
+            "The website changed during verification. Start verification again.",
+        ));
+    }
+    crate::workspace::audit(
+        &mut tx,
+        site.organization_id,
+        user.id,
+        "website.verified",
+        site.id,
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
 }
+
 pub async fn verify(
     State(s): State<AppState>,
     h: HeaderMap,
@@ -255,7 +282,7 @@ pub async fn overview(
     Path(id): Path<Uuid>,
     Query(p): Query<Period>,
 ) -> AppResult<Json<Overview>> {
-    let (site, _) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, _, _queries) = auth::authorize_report(&s, &h, id).await?;
     let (a, b) = range(&p)?;
     Ok(Json(s.store.overview(&site, a, b).await?))
 }
@@ -265,7 +292,7 @@ pub async fn breakdown(
     Path((id, d)): Path<(Uuid, String)>,
     Query(p): Query<Period>,
 ) -> AppResult<Json<Vec<click_store::Breakdown>>> {
-    let (site, _) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, _, _queries) = auth::authorize_report(&s, &h, id).await?;
     let dimension = Dimension::parse(&d).ok_or_else(ApiError::not_found)?;
     let (a, b) = range(&p)?;
     Ok(Json(s.store.breakdown(&site, dimension, a, b).await?))
@@ -438,7 +465,7 @@ pub struct Goal {
 }
 pub async fn add_goal(s: &AppState, h: &HeaderMap, id: Uuid, b: NewGoal) -> AppResult<Goal> {
     auth::csrf(s, h)?;
-    let (_, role) = auth::authorize_site(s, h, id, false).await?;
+    let (site, role) = auth::authorize_site(s, h, id, false).await?;
     if !role.can_edit_goals() {
         return Err(ApiError::not_found());
     }
@@ -456,16 +483,8 @@ pub async fn add_goal(s: &AppState, h: &HeaderMap, id: Uuid, b: NewGoal) -> AppR
         ));
     }
     let user = auth::user(s, h).await?;
-    let (site, _) = auth::authorize_site(s, h, id, false).await?;
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(site.organization_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM memberships WHERE organization_id=$1 AND user_id=$2 AND role IN ('owner','admin','analyst'))").bind(site.organization_id).bind(user.id).fetch_one(&mut *tx).await?;
-    if !allowed {
-        return Err(ApiError::not_found());
-    }
+    crate::workspace::lock_editor(&mut tx, site.organization_id, user.id).await?;
     let limits:(i64,i32)=sqlx::query_as("SELECT (SELECT count(*) FROM goals WHERE website_id=$1),p.goal_limit FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.organization_id=$2").bind(id).bind(site.organization_id).fetch_one(&mut *tx).await?;
     if limits.0 >= limits.1 as i64 {
         return Err(ApiError::conflict("Goal allowance reached"));

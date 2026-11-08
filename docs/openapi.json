@@ -320,6 +320,9 @@
           },
           "404": {
             "description": "Resource not found"
+          },
+          "409": {
+            "description": "Workspace inactive, or origin/challenge changed during DNS verification"
           }
         },
         "security": [
@@ -340,7 +343,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "description": "The DNS lookup runs without holding a workspace lock. Commit rechecks management permission and active status under the organization lock and requires the exact origin/challenge to remain unchanged."
       }
     },
     "/v1/websites/{id}/overview": {
@@ -392,7 +396,8 @@
               "default": 7
             }
           }
-        ]
+        ],
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
       }
     },
     "/v1/websites/{id}/breakdown/{dimension}": {
@@ -1225,7 +1230,33 @@
             "description": "Service unavailable"
           },
           "201": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "accept_url",
+                    "emailed"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "accept_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "emailed": {
+                      "type": "boolean",
+                      "description": "Queued in transactional mail outbox"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1265,7 +1296,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Creates the invitation and queues its email atomically when delivery is configured. emailed means queued, not confirmed delivered. accept_url is also returned for manual sharing."
       }
     },
     "/v1/organizations/{org}/invitations/{id}": {
@@ -1795,6 +1827,73 @@
             }
           }
         ]
+      },
+      "patch": {
+        "summary": "Edit an event-match goal in place",
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "200": {
+            "description": "Updated definition; validation and workspace permissions match creation"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "event_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "event_name"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "goal",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
       }
     },
     "/v1/websites/{id}/funnels": {
@@ -1975,7 +2074,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
       },
       "delete": {
         "summary": "Remove funnel",
@@ -2025,6 +2125,103 @@
             }
           }
         ]
+      },
+      "patch": {
+        "summary": "Edit funnel name, ordered steps and conversion window in place",
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden or invalid Origin"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict or allowance reached"
+          },
+          "429": {
+            "description": "Rate or quota limit"
+          },
+          "503": {
+            "description": "Service unavailable"
+          },
+          "200": {
+            "description": "Updated definition; validation and workspace permissions match creation"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "funnel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "steps": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 8,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "value"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "page",
+                            "event"
+                          ]
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "window_seconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 604800
+                  }
+                },
+                "required": [
+                  "name",
+                  "steps"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/v1/websites/{id}/journeys": {
@@ -2080,7 +2277,8 @@
               "default": 7
             }
           }
-        ]
+        ],
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
       }
     },
     "/v1/websites/{id}/vitals": {
@@ -2136,7 +2334,8 @@
               "default": 7
             }
           }
-        ]
+        ],
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
       }
     },
     "/v1/websites/{id}/revenue": {
@@ -2216,7 +2415,8 @@
               ]
             }
           }
-        ]
+        ],
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
       }
     },
     "/v1/websites/{id}/backend-events": {
@@ -2660,6 +2860,424 @@
         },
         "description": "Raw provider body and Stripe-Signature header; no cookie/Origin required. Fetches authoritative current subscription state. Deduplicates event IDs transactionally."
       }
+    },
+    "/owner/auth/login": {
+      "post": {
+        "summary": "Owner password sign-in; sets owner session or redirects to MFA with a pending cookie",
+        "responses": {
+          "303": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured PUBLIC_URL origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/auth/verify": {
+      "get": {
+        "summary": "Owner second-factor form",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        }
+      },
+      "post": {
+        "summary": "Consume authenticator or recovery code; five attempts per challenge; sets full owner session",
+        "responses": {
+          "303": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured PUBLIC_URL origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ownerPending": []
+          }
+        ]
+      }
+    },
+    "/owner/account": {
+      "get": {
+        "summary": "Owner profile, password, MFA and session settings",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        },
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ]
+      }
+    },
+    "/owner/account/action": {
+      "post": {
+        "summary": "Owner account action; profile, password, sessions, enroll, confirm, codes or disable",
+        "responses": {
+          "303": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          },
+          "200": {
+            "description": "Authenticator enrollment or one-time recovery codes (private HTML)"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured PUBLIC_URL origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "profile",
+                      "password",
+                      "sessions",
+                      "enroll",
+                      "confirm",
+                      "codes",
+                      "disable"
+                    ]
+                  },
+                  "display_name": {
+                    "type": "string"
+                  },
+                  "current_password": {
+                    "type": "string"
+                  },
+                  "new_password": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ],
+        "description": "Profile requires display_name. Other actions require current_password. Password requires new_password and a fresh code when MFA is enabled. Confirm, codes and disable require code. Enroll and confirm return setup/one-time recovery-code pages (200); other actions redirect (303). Security actions recheck session, password and grant under the user-row lock."
+      }
+    },
+    "/owner/forgot-password": {
+      "get": {
+        "summary": "Owner recovery request form",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        }
+      }
+    },
+    "/owner/account/reset/request": {
+      "post": {
+        "summary": "Queue eligible owner reset mail; response never discloses account existence",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured PUBLIC_URL origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/owner/account/reset": {
+      "get": {
+        "summary": "Owner password reset form; token arrives via URL fragment",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        }
+      },
+      "post": {
+        "summary": "Use one-time owner reset token and new password; MFA remains required when enabled",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input or expired/reused code/link"
+          },
+          "401": {
+            "description": "Authentication expired or missing"
+          },
+          "403": {
+            "description": "Invalid Origin or owner grant"
+          },
+          "429": {
+            "description": "Request allowance reached; Retry-After: 60"
+          },
+          "503": {
+            "description": "Temporarily unavailable; Retry-After: 2"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured PUBLIC_URL origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "Fresh authenticator or unused recovery code, required when MFA is enabled"
+                  }
+                },
+                "required": [
+                  "token",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2677,6 +3295,12 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "click_owner_session"
+      },
+      "ownerPending": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "click_owner_pending",
+        "description": "Five-minute password proof. Never authorizes owner or customer data. Only for completing /owner/auth/verify."
       }
     },
     "schemas": {

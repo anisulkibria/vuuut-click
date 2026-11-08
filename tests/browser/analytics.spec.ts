@@ -33,6 +33,40 @@ test('real browser tracker, Rust dashboard, goals, theme, mobile and logout',asy
  await page.getByRole('button',{name:'Create goal'}).click();
  await expect(page.getByRole('cell',{name:'Newsletter signup',exact:true})).toBeVisible();
  await expect(page.getByRole('row').filter({has:page.getByRole('cell',{name:'Newsletter signup',exact:true})})).toContainText('1');
+
+ // Editing a goal in place. The name and event stay readable table cells;
+ // the fields live in a disclosure, so they are scoped to it rather than to
+ // the create form above, which carries the same labels.
+ const goalEdit=page.locator('details.row-edit').filter({hasText:'Newsletter signup'});
+ await goalEdit.locator('summary').click();
+ await goalEdit.getByLabel('Goal name').fill('Newsletter subscribers');
+ await goalEdit.getByLabel('Event name',{exact:true}).fill('newsletter_subscribed');
+ await goalEdit.getByRole('button',{name:'Save goal'}).click();
+ await expect(page.getByRole('cell',{name:'Newsletter subscribers',exact:true})).toBeVisible();
+ await expect(page.getByRole('cell',{name:'newsletter_subscribed',exact:true})).toBeVisible();
+
+ // A funnel's steps are editable too, pre-filled with the funnel as it is.
+ await page.goto(`/insights?site=${website.id}&view=funnels`);
+ await page.getByLabel('Funnel name').fill('Reader to subscriber');
+ await page.getByLabel('Steps, one per line').fill('page:/\nevent:newsletter_subscribed');
+ await page.getByRole('button',{name:'Create funnel'}).click();
+ await expect(page.getByRole('heading',{name:'Reader to subscriber'})).toBeVisible();
+ const funnelEdit=page.locator('details.row-edit');
+ await funnelEdit.locator('summary').click();
+ await expect(funnelEdit.getByLabel('Steps, one per line')).toHaveValue('page:/\nevent:newsletter_subscribed');
+ await funnelEdit.getByLabel('Funnel name').fill('Reader to member');
+ await funnelEdit.getByLabel('Steps, one per line').fill('page:/\nevent:newsletter_subscribed\npage:/thanks');
+ await funnelEdit.getByRole('button',{name:'Save funnel'}).click();
+ await expect(page.getByRole('heading',{name:'Reader to member'})).toBeVisible();
+ await expect(page.getByRole('cell',{name:'3. /thanks · page'})).toBeVisible();
+
+ // Removing asks first, and the row goes when it is confirmed.
+ page.on('dialog',d=>d.accept());
+ await page.goto(`/dashboard?site=${website.id}&view=events`);
+ await page.getByRole('button',{name:'Remove',exact:true}).click();
+ await expect(page.getByRole('cell',{name:'Newsletter subscribers',exact:true})).toHaveCount(0);
+ await expect(page.getByText('No goals yet.')).toBeVisible();
+
  await page.getByTitle('Dark theme',{exact:true}).click();
  await expect(page.locator('html')).toHaveClass('dark');
  await page.screenshot({path:'test-results/dashboard-dark.png',fullPage:true});

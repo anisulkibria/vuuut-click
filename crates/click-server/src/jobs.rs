@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use click_core::Role;
 use click_store::{EventRow, Store};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -32,10 +33,11 @@ pub async fn queue_export(
     let u = auth::user(s, h).await?;
     let (start, end) = api::range(&api::Period { days: Some(days) })?;
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(site.organization_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    // This path held the organization row but never looked at the membership
+    // again, so a member removed after their request began could still queue
+    // an export of the whole workspace's data — the one operation where that
+    // matters most.
+    workspace::lock_editor(&mut tx, site.organization_id, u.id).await?;
     let count:i64=sqlx::query_scalar("SELECT count(*) FROM export_jobs WHERE organization_id=$1 AND created_at>now()-interval '1 day'").bind(site.organization_id).fetch_one(&mut *tx).await?;
     if count >= 20 {
         return Err(ApiError::conflict("Daily export limit reached"));
@@ -120,14 +122,15 @@ pub async fn delete_site(
         return Err(ApiError::bad("Type the website origin to confirm deletion"));
     }
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(site.organization_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM memberships WHERE organization_id=$1 AND user_id=$2 AND role IN ('owner','admin'))").bind(site.organization_id).bind(user.id).fetch_one(&mut *tx).await?;
-    if !allowed {
-        return Err(ApiError::not_found());
-    }
+    // Not gated on the workspace being active: erasing your own data has to
+    // remain possible while a workspace is suspended.
+    workspace::lock_member_even_if_suspended(
+        &mut tx,
+        site.organization_id,
+        user.id,
+        Role::can_manage,
+    )
+    .await?;
     let existing: Option<Uuid> =
         sqlx::query_scalar("SELECT id FROM deletion_jobs WHERE website_id=$1 AND state='pending'")
             .bind(id)
@@ -227,17 +230,23 @@ pub async fn retention(s: &AppState, h: &HeaderMap, id: Uuid, days: i32) -> AppR
     }
     let user = auth::user(s, h).await?;
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(site.organization_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    workspace::lock_member(&mut tx, site.organization_id, user.id, Role::can_manage).await?;
     let limit:i32=sqlx::query_scalar("SELECT p.retention_days FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.organization_id=$1").bind(site.organization_id).fetch_one(&mut *tx).await?;
     if !(7..=90).contains(&days) || days > limit {
         return Err(ApiError::bad(
             "Retention must be between 7 days and your plan's retention limit",
         ));
     }
-    sqlx::query("UPDATE websites SET retention_days=$1 WHERE id=$2 AND EXISTS(SELECT 1 FROM memberships WHERE organization_id=$3 AND user_id=$4 AND role IN ('owner','admin'))").bind(days).bind(id).bind(site.organization_id).bind(user.id).execute(&mut *tx).await?;
+    let changed = sqlx::query("UPDATE websites SET retention_days=$1 WHERE id=$2")
+        .bind(days)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    // Say so rather than reporting a success that changed nothing and
+    // writing an audit entry for it.
+    if changed.rows_affected() == 0 {
+        return Err(ApiError::not_found());
+    }
     workspace::audit(
         &mut tx,
         site.organization_id,

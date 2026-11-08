@@ -1,10 +1,14 @@
 //! Website and credential management; all operations use authenticated membership.
-use crate::{auth, workspace, ApiError, AppResult, AppState};
+use crate::{
+    api::{Goal, NewGoal},
+    auth, workspace, ApiError, AppResult, AppState,
+};
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     Json,
 };
+use click_core::Role;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -48,14 +52,14 @@ pub async fn update_website(
         ));
     }
     let origin = parsed.origin().ascii_serialization();
-    let changed = origin != site.origin;
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(site.organization_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    let result=sqlx::query("UPDATE websites SET name=$1,origin=$2,active=$3,verification_token=CASE WHEN $4 THEN $5 ELSE verification_token END,verified_at=CASE WHEN $4 THEN $6 ELSE verified_at END WHERE id=$7 AND deletion_requested_at IS NULL AND EXISTS(SELECT 1 FROM memberships WHERE organization_id=$8 AND user_id=$9 AND role IN ('owner','admin'))")
-  .bind(input.name.trim()).bind(origin).bind(input.active).bind(changed).bind(auth::secret()).bind((local&&s.config.allow_localhost).then(chrono::Utc::now)).bind(id).bind(site.organization_id).bind(user.id).execute(&mut *tx).await;
+    // The membership condition that used to be an `EXISTS` inside this
+    // UPDATE now lives here, with the workspace's status, so the role is
+    // named once and a suspended workspace cannot change where collection
+    // comes from.
+    workspace::lock_member(&mut tx, site.organization_id, user.id, Role::can_manage).await?;
+    let result=sqlx::query("UPDATE websites SET name=$1,origin=$2,active=$3,verification_token=CASE WHEN origin<>$2 THEN $4 ELSE verification_token END,verified_at=CASE WHEN origin<>$2 THEN $5 ELSE verified_at END WHERE id=$6 AND deletion_requested_at IS NULL")
+  .bind(input.name.trim()).bind(origin).bind(input.active).bind(auth::secret()).bind((local&&s.config.allow_localhost).then(chrono::Utc::now)).bind(id).execute(&mut *tx).await;
     let result = match result {
         Ok(r) => r,
         Err(e)
@@ -123,14 +127,7 @@ pub async fn issue_key(
         return Err(ApiError::bad("Enter a credential name and valid scope"));
     }
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(site.organization_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM memberships WHERE organization_id=$1 AND user_id=$2 AND role IN ('owner','admin'))").bind(site.organization_id).bind(user.id).fetch_one(&mut *tx).await?;
-    if !allowed {
-        return Err(ApiError::not_found());
-    }
+    workspace::lock_member(&mut tx, site.organization_id, user.id, Role::can_manage).await?;
     if let Some(old) = rotate {
         let result=sqlx::query("UPDATE api_keys SET revoked_at=now() WHERE id=$1 AND website_id=$2 AND revoked_at IS NULL").bind(old).bind(id).execute(&mut *tx).await?;
         if result.rows_affected() == 0 {
@@ -213,18 +210,17 @@ pub async fn keys(
     auth::authorize_site(&s, &h, id, true).await?;
     Ok(Json(sqlx::query_as("SELECT id,label,scope,created_at,revoked_at FROM api_keys WHERE website_id=$1 ORDER BY created_at DESC LIMIT 100").bind(id).fetch_all(&s.store.pg).await?))
 }
-pub async fn delete_goal(
-    State(s): State<AppState>,
-    h: HeaderMap,
-    Path((id, goal)): Path<(Uuid, Uuid)>,
-) -> AppResult<StatusCode> {
-    auth::csrf(&s, &h)?;
-    let (site, role) = auth::authorize_site(&s, &h, id, false).await?;
+/// Delete a goal. Separate from its handler so the dashboard's own form can
+/// call it, as the funnel pair already does.
+pub async fn remove_goal(s: &AppState, h: &HeaderMap, id: Uuid, goal: Uuid) -> AppResult<()> {
+    auth::csrf(s, h)?;
+    let (site, role) = auth::authorize_site(s, h, id, false).await?;
     if !role.can_edit_goals() {
         return Err(ApiError::not_found());
     }
-    let user = auth::user(&s, &h).await?;
+    let user = auth::user(s, h).await?;
     let mut tx = s.store.pg.begin().await?;
+    workspace::lock_editor(&mut tx, site.organization_id, user.id).await?;
     let deleted = sqlx::query("DELETE FROM goals WHERE id=$1 AND website_id=$2")
         .bind(goal)
         .bind(id)
@@ -235,8 +231,96 @@ pub async fn delete_goal(
     }
     workspace::audit(&mut tx, site.organization_id, user.id, "goal.deleted", goal).await?;
     tx.commit().await?;
+    Ok(())
+}
+
+pub async fn delete_goal(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path((id, goal)): Path<(Uuid, Uuid)>,
+) -> AppResult<StatusCode> {
+    remove_goal(&s, &h, id, goal).await?;
     Ok(StatusCode::NO_CONTENT)
 }
+/// Rename a goal, or point it at a different custom event.
+///
+/// The event name is editable on purpose: a goal whose event was renamed in
+/// the site's own code was previously unfixable — the only route was to
+/// delete the goal and lose its name, because creation was the only writer.
+/// Completions are counted by matching the event name at query time, so
+/// changing it re-reads history rather than losing it.
+pub async fn edit_goal(
+    s: &AppState,
+    h: &HeaderMap,
+    id: Uuid,
+    goal: Uuid,
+    b: NewGoal,
+) -> AppResult<Goal> {
+    auth::csrf(s, h)?;
+    let (site, role) = auth::authorize_site(s, h, id, false).await?;
+    if !role.can_edit_goals() {
+        return Err(ApiError::not_found());
+    }
+    let name = b.name.trim().to_string();
+    // The same rules creation applies; validated here rather than shared with
+    // it because a goal is also the shape the API accepts, and two callers
+    // that disagree about what is valid is the bug this avoids.
+    if name.is_empty()
+        || name.len() > 100
+        || b.event_name.is_empty()
+        || b.event_name.len() > 64
+        || !b
+            .event_name
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_-.:".contains(&c))
+    {
+        return Err(ApiError::bad(
+            "Use a goal name and a valid custom event name",
+        ));
+    }
+    let user = auth::user(s, h).await?;
+    let mut tx = s.store.pg.begin().await?;
+    workspace::lock_editor(&mut tx, site.organization_id, user.id).await?;
+    // Scoped by website as well as id, so a goal id belonging to another
+    // site cannot be reached through a site this membership does authorize.
+    let result =
+        sqlx::query("UPDATE goals SET name=$1,event_name=$2 WHERE id=$3 AND website_id=$4")
+            .bind(&name)
+            .bind(&b.event_name)
+            .bind(goal)
+            .bind(id)
+            .execute(&mut *tx)
+            .await;
+    match result {
+        Ok(done) if done.rows_affected() == 0 => return Err(ApiError::not_found()),
+        Ok(_) => {}
+        Err(e) => {
+            if e.as_database_error()
+                .is_some_and(|e| e.is_unique_violation())
+            {
+                return Err(ApiError::conflict("A goal with this name already exists"));
+            }
+            return Err(e.into());
+        }
+    }
+    workspace::audit(&mut tx, site.organization_id, user.id, "goal.updated", goal).await?;
+    tx.commit().await?;
+    Ok(Goal {
+        id: goal,
+        name,
+        event_name: b.event_name,
+    })
+}
+
+pub async fn update_goal(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path((id, goal)): Path<(Uuid, Uuid)>,
+    Json(b): Json<NewGoal>,
+) -> AppResult<Json<Goal>> {
+    Ok(Json(edit_goal(&s, &h, id, goal, b).await?))
+}
+
 #[derive(Deserialize)]
 pub struct ProfileInput {
     pub display_name: String,
@@ -247,11 +331,14 @@ pub async fn profile(s: &AppState, h: &HeaderMap, input: ProfileInput) -> AppRes
     if input.display_name.len() > 100 {
         return Err(ApiError::bad("Name must contain at most 100 characters"));
     }
+    let mut tx = s.store.pg.begin().await?;
+    auth::lock_customer(&mut tx, h, u.id).await?;
     sqlx::query("UPDATE users SET display_name=$1 WHERE id=$2")
         .bind(input.display_name.trim())
         .bind(u.id)
-        .execute(&s.store.pg)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 #[derive(Deserialize)]
@@ -269,30 +356,22 @@ pub async fn change_password(
     if input.new_password.len() < 12 || input.new_password.len() > 256 {
         return Err(ApiError::bad("New password must contain 12–256 characters"));
     }
-    auth::verify_credentials(
-        s,
-        auth::Credentials {
-            email: user.email.clone(),
-            password: input.current_password,
-            organization: None,
-        },
-    )
-    .await?;
+    // Hash the new password before opening the transaction. Argon2 is
+    // deliberately slow, and holding the user's row for the duration would
+    // make a password change block every other operation on that account.
     let permit = s
         .password_slots
         .acquire()
         .await
         .map_err(ApiError::internal)?;
+    let new_password = input.new_password;
     let hash = tokio::task::spawn_blocking(move || {
         use argon2::{
             password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
             Argon2,
         };
         Argon2::default()
-            .hash_password(
-                input.new_password.as_bytes(),
-                &SaltString::generate(&mut OsRng),
-            )
+            .hash_password(new_password.as_bytes(), &SaltString::generate(&mut OsRng))
             .map(|h| h.to_string())
             .map_err(|_| anyhow::anyhow!("Password hashing failed"))
     })
@@ -300,13 +379,26 @@ pub async fn change_password(
     .map_err(ApiError::internal)?
     .map_err(ApiError::internal)?;
     drop(permit);
+
     let token = auth::secret();
     let mut tx = s.store.pg.begin().await?;
+    // The current password is proved here, against the row as it is *now* and
+    // with it locked, not against a hash read before the transaction opened.
+    // Otherwise two concurrent changes could each verify the same old
+    // password and the later write would silently win — so a stolen session
+    // holding the old password could overwrite a legitimate change made
+    // moments earlier. Serialized on this row, the second attempt is asked
+    // for a password that no longer exists.
+    let current = auth::lock_customer(&mut tx, h, user.id).await?;
+    if !auth::verify_against_hash(s, current, input.current_password).await? {
+        return Err(ApiError::unauthorized());
+    }
     sqlx::query("UPDATE users SET password_hash=$1 WHERE id=$2")
         .bind(hash)
         .bind(user.id)
         .execute(&mut *tx)
         .await?;
+    sqlx::query("UPDATE account_tokens SET used_at=now() WHERE user_id=$1 AND purpose='reset' AND used_at IS NULL").bind(user.id).execute(&mut *tx).await?;
     sqlx::query("DELETE FROM sessions WHERE user_id=$1 AND audience='user'")
         .bind(user.id)
         .execute(&mut *tx)
@@ -318,12 +410,15 @@ pub async fn change_password(
 pub async fn other_sessions(s: &AppState, h: &HeaderMap) -> AppResult<()> {
     auth::csrf(s, h)?;
     let user = auth::user(s, h).await?;
+    let mut tx = s.store.pg.begin().await?;
+    auth::lock_customer(&mut tx, h, user.id).await?;
     let token = auth::cookie_value(h, "click_session").ok_or_else(ApiError::unauthorized)?;
     sqlx::query("DELETE FROM sessions WHERE user_id=$1 AND audience='user' AND token_hash<>$2")
         .bind(user.id)
         .bind(click_core::digest(&token))
-        .execute(&s.store.pg)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 

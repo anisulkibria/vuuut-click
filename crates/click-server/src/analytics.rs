@@ -83,14 +83,7 @@ pub async fn create_funnel(
     }
     let u = auth::user(s, h).await?;
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(site.organization_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM memberships WHERE organization_id=$1 AND user_id=$2 AND role IN ('owner','admin','analyst'))").bind(site.organization_id).bind(u.id).fetch_one(&mut *tx).await?;
-    if !allowed {
-        return Err(ApiError::not_found());
-    }
+    workspace::lock_editor(&mut tx, site.organization_id, u.id).await?;
     let limits:(i64,i32)=sqlx::query_as("SELECT (SELECT count(*) FROM funnels WHERE website_id=$1),p.funnel_limit FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.organization_id=$2").bind(id).bind(site.organization_id).fetch_one(&mut *tx).await?;
     if limits.0 >= limits.1 as i64 {
         return Err(ApiError::conflict("Funnel allowance reached"));
@@ -145,6 +138,76 @@ pub async fn list(
     auth::authorize_site(&s, &h, id, false).await?;
     Ok(Json(sqlx::query_as("SELECT id,name,steps,window_seconds FROM funnels WHERE website_id=$1 ORDER BY created_at LIMIT 100").bind(id).fetch_all(&s.store.pg).await?))
 }
+/// Change a funnel's name, steps or conversion window.
+///
+/// Editing the steps is the point: a funnel is a sequence of page paths and
+/// events, and the first attempt at one is rarely the right one. Previously
+/// the only way to correct a step was to delete the funnel and build it
+/// again. Steps are stored, not derived, so a rewrite only changes what the
+/// report measures from here on — no stored event is touched.
+pub async fn update_funnel(
+    s: &AppState,
+    h: &HeaderMap,
+    id: Uuid,
+    funnel: Uuid,
+    input: FunnelInput,
+) -> AppResult<()> {
+    auth::csrf(s, h)?;
+    validate(&input)?;
+    let (site, role) = auth::authorize_site(s, h, id, false).await?;
+    if !role.can_edit_goals() {
+        return Err(ApiError::not_found());
+    }
+    let u = auth::user(s, h).await?;
+    let steps = serde_json::to_value(&input.steps).map_err(ApiError::internal)?;
+    let mut tx = s.store.pg.begin().await?;
+    workspace::lock_editor(&mut tx, site.organization_id, u.id).await?;
+    // Scoped by website as well as id: a funnel id from another site must not
+    // be reachable through a site this membership authorizes.
+    let result = sqlx::query(
+        "UPDATE funnels SET name=$1,steps=$2,window_seconds=$3 WHERE id=$4 AND website_id=$5",
+    )
+    .bind(input.name.trim())
+    .bind(steps)
+    .bind(input.window_seconds)
+    .bind(funnel)
+    .bind(site.id)
+    .execute(&mut *tx)
+    .await;
+    match result {
+        Ok(done) if done.rows_affected() == 0 => return Err(ApiError::not_found()),
+        Ok(_) => {}
+        Err(e) => {
+            if e.as_database_error()
+                .is_some_and(|e| e.is_unique_violation())
+            {
+                return Err(ApiError::conflict("A funnel with this name already exists"));
+            }
+            return Err(e.into());
+        }
+    }
+    workspace::audit(
+        &mut tx,
+        site.organization_id,
+        u.id,
+        "funnel.updated",
+        funnel,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+pub async fn update(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path((id, funnel)): Path<(Uuid, Uuid)>,
+    Json(input): Json<FunnelInput>,
+) -> AppResult<StatusCode> {
+    update_funnel(&s, &h, id, funnel, input).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn remove_funnel(s: &AppState, h: &HeaderMap, site: Uuid, funnel: Uuid) -> AppResult<()> {
     auth::csrf(s, h)?;
     let (site, role) = auth::authorize_site(s, h, site, false).await?;
@@ -153,6 +216,7 @@ pub async fn remove_funnel(s: &AppState, h: &HeaderMap, site: Uuid, funnel: Uuid
     }
     let u = auth::user(s, h).await?;
     let mut tx = s.store.pg.begin().await?;
+    workspace::lock_editor(&mut tx, site.organization_id, u.id).await?;
     let result = sqlx::query("DELETE FROM funnels WHERE id=$1 AND website_id=$2")
         .bind(funnel)
         .bind(site.id)
@@ -283,7 +347,7 @@ pub async fn report(
     Path((id, funnel)): Path<(Uuid, Uuid)>,
     Query(p): Query<api::Period>,
 ) -> AppResult<Json<FunnelReport>> {
-    let (site, _) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, _, _queries) = auth::authorize_report(&s, &h, id).await?;
     let funnel: Funnel = sqlx::query_as(
         "SELECT id,name,steps,window_seconds FROM funnels WHERE id=$1 AND website_id=$2",
     )
@@ -309,6 +373,16 @@ pub struct Journey {
 struct SessionId {
     session_id: String,
 }
+/// The most recent sessions, with their steps.
+///
+/// The step array is bounded *by the aggregate*, not sliced afterwards:
+/// `groupArraySorted(100)` keeps a hundred elements in its state, where
+/// `arraySlice(arraySort(groupArray(…)),1,100)` built the session's entire
+/// history in memory first and then threw almost all of it away. For an
+/// ordinary session the two are identical — verified equal across every
+/// session in the development dataset — but a session with hundreds of
+/// thousands of events is the case that decides how much memory one report
+/// can ask for.
 pub async fn journey_data(
     store: &Store,
     site: &Website,
@@ -320,7 +394,7 @@ pub async fn journey_data(
         return Ok(Vec::new());
     }
     let ids: Vec<String> = sessions.into_iter().map(|s| s.session_id).collect();
-    store.ch.query("SELECT session_id,argMin(country,occurred_ms) AS country,count() AS events,arraySlice(arraySort(groupArray((occurred_ms,path,name))),1,100) AS steps FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND name!='web_vital' AND session_id IN ? GROUP BY session_id ORDER BY max(occurred_ms) DESC,session_id").bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(start).bind(end).bind(ids).fetch_all().await.map_err(ApiError::internal)
+    store.ch.query("SELECT session_id,argMin(country,occurred_ms) AS country,count() AS events,groupArraySorted(100)((occurred_ms,path,name)) AS steps FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND name!='web_vital' AND session_id IN ? GROUP BY session_id ORDER BY max(occurred_ms) DESC,session_id").bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(start).bind(end).bind(ids).fetch_all().await.map_err(ApiError::internal)
 }
 pub async fn journeys(
     State(s): State<AppState>,
@@ -328,7 +402,7 @@ pub async fn journeys(
     Path(id): Path<Uuid>,
     Query(p): Query<api::Period>,
 ) -> AppResult<Json<Vec<Journey>>> {
-    let (site, _) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, _, _queries) = auth::authorize_report(&s, &h, id).await?;
     let (start, end) = api::range(&p)?;
     Ok(Json(journey_data(&s.store, &site, start, end).await?))
 }
@@ -354,7 +428,7 @@ pub async fn vitals(
     Path(id): Path<Uuid>,
     Query(p): Query<api::Period>,
 ) -> AppResult<Json<Vec<VitalReport>>> {
-    let (site, _) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, _, _queries) = auth::authorize_report(&s, &h, id).await?;
     let (start, end) = api::range(&p)?;
     Ok(Json(vital_data(&s.store, &site, start, end).await?))
 }
@@ -414,7 +488,7 @@ pub async fn revenue(
     Path(id): Path<Uuid>,
     Query(p): Query<RevenueQuery>,
 ) -> AppResult<Json<Vec<Revenue>>> {
-    let (site, _) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, _, _queries) = auth::authorize_report(&s, &h, id).await?;
     let (start, end) = api::range(&api::Period { days: p.days })?;
     Ok(Json(
         revenue_data(

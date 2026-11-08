@@ -192,6 +192,14 @@ pub async fn request_token(s: &AppState, email: &str, purpose: &str) -> AppResul
         .bind(user)
         .fetch_one(&mut *tx)
         .await?;
+    let owner: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM platform_owners WHERE user_id=$1)")
+            .bind(user)
+            .fetch_one(&mut *tx)
+            .await?;
+    if owner {
+        return Ok(());
+    }
     let outstanding:i64=sqlx::query_scalar("SELECT count(*) FROM account_tokens WHERE user_id=$1 AND purpose=$2 AND expires_at>now() AND used_at IS NULL").bind(user).bind(purpose).fetch_one(&mut *tx).await?;
     if outstanding >= 3 {
         return Ok(());
@@ -244,6 +252,9 @@ pub struct CompleteInput {
     pub password: Option<String>,
 }
 pub async fn complete(s: &AppState, input: CompleteInput, purpose: &str) -> AppResult<()> {
+    if !matches!(purpose, "verify" | "reset") {
+        return Err(ApiError::bad("Invalid account token purpose"));
+    }
     if input.token.len() != 64 {
         return Err(ApiError::bad("Invalid account link"));
     }

@@ -317,6 +317,458 @@ async fn real_event_pipeline_is_durable_deduplicated_and_tenant_isolated() {
             .status(),
         StatusCode::NOT_FOUND
     );
+    // ---- editing goals and funnels -------------------------------------
+    //
+    // Both were create-and-delete only: a goal whose event was renamed in the
+    // site's code, or a funnel with one wrong step, could not be corrected,
+    // only destroyed and rebuilt under a new name. These cover the edit paths
+    // and the privilege checks that run inside the mutating transaction.
+    let goal: Value = owner
+        .post(format!("{base}/v1/websites/{id}/goals"))
+        .header("Origin", &base)
+        .json(&json!({"name":"Signups","event_name":"signup"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let goal_id = goal["id"].as_str().unwrap().to_string();
+    let patch_goal = |body: Value| {
+        owner
+            .patch(format!("{base}/v1/websites/{id}/goals/{goal_id}"))
+            .header("Origin", &base)
+            .json(&body)
+    };
+
+    // The name and the event are both editable, and the edit is what is
+    // stored afterwards.
+    assert_eq!(
+        patch_goal(json!({"name":"Newsletter signups","event_name":"newsletter_signup"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    let listed: Value = owner
+        .get(format!("{base}/v1/websites/{id}/goals"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let stored = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == goal["id"])
+        .expect("the edited goal is still listed");
+    assert_eq!(stored["name"], "Newsletter signups");
+    assert_eq!(stored["event_name"], "newsletter_signup");
+
+    // A rename onto a name already taken on this site is a conflict, not a
+    // silent overwrite of either goal.
+    owner
+        .post(format!("{base}/v1/websites/{id}/goals"))
+        .header("Origin", &base)
+        .json(&json!({"name":"Trials","event_name":"trial_started"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        patch_goal(json!({"name":"Trials","event_name":"newsletter_signup"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+    // Validation matches creation's: an event name is not free text.
+    assert_eq!(
+        patch_goal(json!({"name":"Newsletter signups","event_name":"not a valid name"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    // An unknown goal is not found rather than silently doing nothing.
+    assert_eq!(
+        owner
+            .patch(format!("{base}/v1/websites/{id}/goals/{}", Uuid::new_v4()))
+            .header("Origin", &base)
+            .json(&json!({"name":"Ghost","event_name":"ghost"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+
+    // A goal belonging to another website is unreachable through a website
+    // this membership does authorize: the update is scoped by both ids.
+    let second: Value = owner
+        .post(format!("{base}/v1/websites"))
+        .header("Origin", &base)
+        .json(&json!({"organization_id":org,"name":"Second","origin":"https://second.example"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let second_id = second["id"].as_str().unwrap();
+    assert_eq!(
+        owner
+            .patch(format!("{base}/v1/websites/{second_id}/goals/{goal_id}"))
+            .header("Origin", &base)
+            .json(&json!({"name":"Moved","event_name":"signup"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+
+    // A viewer may read the reports and neither edit nor delete.
+    for method in ["patch", "delete"] {
+        let request = if method == "patch" {
+            other
+                .patch(format!("{base}/v1/websites/{id}/goals/{goal_id}"))
+                .json(&json!({"name":"Viewer","event_name":"signup"}))
+        } else {
+            other.delete(format!("{base}/v1/websites/{id}/goals/{goal_id}"))
+        };
+        assert_eq!(
+            request
+                .header("Origin", &base)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::NOT_FOUND,
+            "a viewer completed a {method}"
+        );
+    }
+
+    // A role that was downgraded before the request arrives. Caught by
+    // `authorize_site`, which re-reads the membership per request — asserted
+    // because it is the outer half of the defence, not because it exercises
+    // the transaction guard.
+    let org_uuid = Uuid::parse_str(org).unwrap();
+    let owner_user: Value = owner
+        .get(format!("{base}/v1/me"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let owner_id = Uuid::parse_str(owner_user["id"].as_str().unwrap()).unwrap();
+    let restore_owner = |pool: sqlx::PgPool| async move {
+        sqlx::query("UPDATE memberships SET role='owner' WHERE organization_id=$1 AND user_id=$2")
+            .bind(org_uuid)
+            .bind(owner_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+    };
+    sqlx::query("UPDATE memberships SET role='viewer' WHERE organization_id=$1 AND user_id=$2")
+        .bind(org_uuid)
+        .bind(owner_id)
+        .execute(&store.pg)
+        .await
+        .unwrap();
+    assert_eq!(
+        patch_goal(json!({"name":"Downgraded","event_name":"signup"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+    restore_owner(store.pg.clone()).await;
+
+    // The race itself. Holding the organization row makes the request wait
+    // inside `lock_editor`, so the role is taken away *after* it has already
+    // passed its per-request check. It must still not write.
+    //
+    // Deterministic in both orderings: while the row is held the request
+    // cannot reach the write, and if it arrives only after the commit its own
+    // pre-check sees the downgrade. Either way it must not succeed.
+    let mut race = store.pg.begin().await.unwrap();
+    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
+        .bind(org_uuid)
+        .fetch_one(&mut *race)
+        .await
+        .unwrap();
+    let racing = {
+        let client = owner.clone();
+        let url = format!("{base}/v1/websites/{id}/goals/{goal_id}");
+        let origin = base.clone();
+        tokio::spawn(async move {
+            client
+                .patch(url)
+                .header("Origin", origin)
+                .json(&json!({"name":"Raced","event_name":"signup"}))
+                .send()
+                .await
+                .unwrap()
+                .status()
+        })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    sqlx::query("UPDATE memberships SET role='viewer' WHERE organization_id=$1 AND user_id=$2")
+        .bind(org_uuid)
+        .bind(owner_id)
+        .execute(&mut *race)
+        .await
+        .unwrap();
+    race.commit().await.unwrap();
+    assert_eq!(
+        racing.await.unwrap(),
+        StatusCode::NOT_FOUND,
+        "a write completed with a role that had been revoked"
+    );
+    restore_owner(store.pg.clone()).await;
+
+    // A suspended workspace cannot be edited either. This is the assertion
+    // that fails outright if `lock_editor` is removed: `authorize_site`
+    // checks membership but never the workspace's status, so the transaction
+    // guard is the only thing that refuses a suspended workspace.
+    sqlx::query("UPDATE organizations SET status='suspended' WHERE id=$1")
+        .bind(Uuid::parse_str(org).unwrap())
+        .execute(&store.pg)
+        .await
+        .unwrap();
+    assert_eq!(
+        patch_goal(json!({"name":"Suspended","event_name":"signup"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+    sqlx::query("UPDATE organizations SET status='active' WHERE id=$1")
+        .bind(Uuid::parse_str(org).unwrap())
+        .execute(&store.pg)
+        .await
+        .unwrap();
+
+    // Funnels edit the same way, steps included.
+    let funnel: Value = owner
+        .post(format!("{base}/v1/websites/{id}/funnels"))
+        .header("Origin", &base)
+        .json(&json!({"name":"Reader to subscriber","steps":[{"kind":"page","value":"/"},{"kind":"page","value":"/pricing"}],"window_seconds":86400}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let funnel_id = funnel["id"].as_str().unwrap();
+    assert_eq!(
+        owner
+            .patch(format!("{base}/v1/websites/{id}/funnels/{funnel_id}"))
+            .header("Origin", &base)
+            .json(&json!({"name":"Reader to trial","steps":[{"kind":"page","value":"/"},{"kind":"event","value":"trial_started"}],"window_seconds":3600}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+    let funnels: Value = owner
+        .get(format!("{base}/v1/websites/{id}/funnels"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let edited = &funnels.as_array().unwrap()[0];
+    assert_eq!(edited["name"], "Reader to trial");
+    assert_eq!(edited["window_seconds"], 3600);
+    assert_eq!(edited["steps"][1]["value"], "trial_started");
+    // Invalid steps are refused, so a funnel cannot be edited into nonsense.
+    assert_eq!(
+        owner
+            .patch(format!("{base}/v1/websites/{id}/funnels/{funnel_id}"))
+            .header("Origin", &base)
+            .json(&json!({"name":"Broken","steps":[{"kind":"page","value":"no-leading-slash"}],"window_seconds":3600}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        other
+            .patch(format!("{base}/v1/websites/{id}/funnels/{funnel_id}"))
+            .header("Origin", &base)
+            .json(&json!({"name":"Viewer","steps":[{"kind":"page","value":"/"},{"kind":"page","value":"/a"}],"window_seconds":3600}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+
+    // ---- the same recheck on the remaining workspace mutations ---------
+    //
+    // These held the organization row but either never looked at the
+    // membership again, or did it as an `EXISTS` inside the write — which
+    // changes no rows and reports success.
+    //
+    // Retention was the worst of the three: its membership test was an
+    // `EXISTS` inside the UPDATE, so losing the role changed no rows and the
+    // call still returned success and wrote an audit entry saying the
+    // retention had been changed. Only reachable in the race window — the
+    // per-request check catches a role already gone — so this forces that
+    // window open by holding the organization row while the request waits.
+    let retention_url = format!("{base}/v1/websites/{id}/retention");
+    let before: i32 = sqlx::query_scalar("SELECT retention_days FROM websites WHERE id=$1")
+        .bind(Uuid::parse_str(id).unwrap())
+        .fetch_one(&store.pg)
+        .await
+        .unwrap();
+    let mut held = store.pg.begin().await.unwrap();
+    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
+        .bind(org_uuid)
+        .fetch_one(&mut *held)
+        .await
+        .unwrap();
+    let waiting = {
+        let client = owner.clone();
+        let url = retention_url.clone();
+        let origin = base.clone();
+        tokio::spawn(async move {
+            client
+                .put(url)
+                .header("Origin", origin)
+                .json(&json!({"days":30}))
+                .send()
+                .await
+                .unwrap()
+                .status()
+        })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    sqlx::query("UPDATE memberships SET role='viewer' WHERE organization_id=$1 AND user_id=$2")
+        .bind(org_uuid)
+        .bind(owner_id)
+        .execute(&mut *held)
+        .await
+        .unwrap();
+    held.commit().await.unwrap();
+    assert_eq!(
+        waiting.await.unwrap(),
+        StatusCode::NOT_FOUND,
+        "a privilege-lost retention change reported success"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i32>("SELECT retention_days FROM websites WHERE id=$1")
+            .bind(Uuid::parse_str(id).unwrap())
+            .fetch_one(&store.pg)
+            .await
+            .unwrap(),
+        before,
+        "retention changed for a member who had lost the role"
+    );
+    restore_owner(store.pg.clone()).await;
+
+    // A suspended workspace must not be able to issue a credential — the
+    // credential grants access to the data the suspension withdrew — nor
+    // change where collection comes from.
+    sqlx::query("UPDATE organizations SET status='suspended' WHERE id=$1")
+        .bind(org_uuid)
+        .execute(&store.pg)
+        .await
+        .unwrap();
+    assert_eq!(
+        owner
+            .post(format!("{base}/v1/websites/{id}/keys"))
+            .header("Origin", &base)
+            .json(&json!({"label":"While suspended","scope":"read"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        owner
+            .patch(format!("{base}/v1/websites/{id}"))
+            .header("Origin", &base)
+            .json(&json!({"name":"Renamed while suspended","origin":"https://elsewhere.example","active":true}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        owner
+            .put(&retention_url)
+            .header("Origin", &base)
+            .json(&json!({"days":30}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+    // Erasing your own data stays possible while suspended, deliberately, so
+    // a suspension cannot strand a customer's data. Asserted as the boundary
+    // of the rule above: this one must *not* be a conflict.
+    assert_ne!(
+        owner
+            .delete(format!("{base}/v1/websites/{second_id}"))
+            .header("Origin", &base)
+            .json(&json!({"confirmation":"https://second.example"}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT,
+        "a suspended workspace could not delete its own website"
+    );
+    sqlx::query("UPDATE organizations SET status='active' WHERE id=$1")
+        .bind(org_uuid)
+        .execute(&store.pg)
+        .await
+        .unwrap();
+
+    // Deleting still works, and the goal is gone afterwards.
+    assert_eq!(
+        owner
+            .delete(format!("{base}/v1/websites/{id}/goals/{goal_id}"))
+            .header("Origin", &base)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+    let remaining: Value = owner
+        .get(format!("{base}/v1/websites/{id}/goals"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        !remaining
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|g| g["id"] == goal["id"]),
+        "the deleted goal is still listed"
+    );
+
     // Quota rejection rolls back the whole new batch; retries are never billed twice.
     sqlx::query("UPDATE plans SET monthly_events=1 WHERE id='free'")
         .execute(&store.pg)
@@ -503,6 +955,35 @@ async fn real_event_pipeline_is_durable_deduplicated_and_tenant_isolated() {
             .unwrap();
         assert!(denied.url().path().ends_with("/owner/signin"));
     }
+    // The sign-in pages are `/signin` and `/owner/signin`, but `/login` is
+    // what a person types. It used to 404 on the owner side — the
+    // `/owner/{section}` catch-all rejected the unknown section before
+    // looking at who was asking — which read as a broken portal rather than
+    // a wrong address. Each alias now lands on the real page.
+    for (typed, page) in [
+        ("/login", "/signin"),
+        ("/register", "/signup"),
+        ("/owner/login", "/owner/signin"),
+    ] {
+        let landed = anonymous
+            .get(format!("{base}{typed}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(landed.status(), StatusCode::OK, "{typed} did not resolve");
+        assert_eq!(
+            landed.url().path(),
+            page,
+            "{typed} went somewhere unexpected"
+        );
+    }
+    // And the alias must not shadow a real owner section.
+    let real_section = anonymous
+        .get(format!("{base}/owner/websites"))
+        .send()
+        .await
+        .unwrap();
+    assert!(real_section.url().path().ends_with("/owner/signin"));
     let home = shared.get(format!("{base}/")).send().await.unwrap();
     assert_eq!(home.status(), StatusCode::OK);
     assert!(home.headers().get("location").is_none());

@@ -37,6 +37,79 @@ async fn lock_org(tx: &mut PgConnection, org: Uuid) -> AppResult<()> {
     active.ok_or_else(|| ApiError::conflict("Workspace is not active"))?;
     Ok(())
 }
+/// Lock the workspace and confirm the actor *still* holds a sufficient role,
+/// inside the transaction that is about to mutate.
+///
+/// The role checked before a transaction opens is a role the actor had a
+/// moment ago. Between that check and the write, their membership can be
+/// removed or downgraded, or the workspace can be suspended — and the write
+/// would still land. Mutations therefore re-check here, holding the
+/// organization row, so the role that authorizes a write is the role in force
+/// when it commits.
+///
+/// `allow` is the same predicate the pre-transaction check used, so the two
+/// cannot disagree: pass `Role::can_edit_goals` or `Role::can_manage` rather
+/// than respelling either as an `IN (…)` list in SQL, which is a list that
+/// goes stale silently when a role is added.
+///
+/// Missing privileges are reported as not-found, matching `authorize_site`:
+/// whether a resource exists is itself information.
+pub async fn lock_member(
+    tx: &mut PgConnection,
+    org: Uuid,
+    actor: Uuid,
+    allow: fn(Role) -> bool,
+) -> AppResult<()> {
+    lock_org(tx, org).await?;
+    recheck_role(tx, org, actor, allow).await
+}
+
+/// The same, for the few paths that must keep working while a workspace is
+/// suspended.
+///
+/// Paying is how a past-due workspace recovers, so refusing checkout to a
+/// suspended workspace would trap the customer in the state they are trying
+/// to leave. The privilege re-check still applies — only the active-workspace
+/// requirement is waived, and the name says so at the call site.
+pub async fn lock_member_even_if_suspended(
+    tx: &mut PgConnection,
+    org: Uuid,
+    actor: Uuid,
+    allow: fn(Role) -> bool,
+) -> AppResult<()> {
+    let exists: Option<Uuid> =
+        sqlx::query_scalar("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
+            .bind(org)
+            .fetch_optional(&mut *tx)
+            .await?;
+    exists.ok_or_else(ApiError::not_found)?;
+    recheck_role(tx, org, actor, allow).await
+}
+
+/// Who the actor is *now*, by the workspace's own membership row.
+async fn recheck_role(
+    tx: &mut PgConnection,
+    org: Uuid,
+    actor: Uuid,
+    allow: fn(Role) -> bool,
+) -> AppResult<()> {
+    let role: Option<String> =
+        sqlx::query_scalar("SELECT role FROM memberships WHERE organization_id=$1 AND user_id=$2")
+            .bind(org)
+            .bind(actor)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if !role.as_deref().and_then(Role::parse).is_some_and(allow) {
+        return Err(ApiError::not_found());
+    }
+    Ok(())
+}
+
+/// [`lock_member`] for the goal and funnel mutations, which share one rule.
+pub async fn lock_editor(tx: &mut PgConnection, org: Uuid, actor: Uuid) -> AppResult<()> {
+    lock_member(tx, org, actor, Role::can_edit_goals).await
+}
+
 pub async fn audit(
     tx: &mut PgConnection,
     org: Uuid,
@@ -167,6 +240,12 @@ pub struct InviteInput {
 pub struct Invitation {
     pub id: Uuid,
     pub accept_url: String,
+    /// Whether the invitation was queued for delivery to the invitee.
+    ///
+    /// The link is returned either way: the caller still needs something to
+    /// show, and an operator with no mail configured has to be able to pass
+    /// it on by hand. This says whether they *have* to.
+    pub emailed: bool,
 }
 pub async fn invite_member(
     s: &AppState,
@@ -177,7 +256,8 @@ pub async fn invite_member(
     auth::csrf(s, h)?;
     let (user, role) = membership(s, h, org, true).await?;
     let email = input.email.trim().to_lowercase();
-    if !email.contains('@')
+    if email.parse::<lettre::Address>().is_err()
+        || !email.contains('@')
         || email.len() > 254
         || email.chars().any(char::is_whitespace)
         || !matches!(input.role.as_str(), "admin" | "analyst" | "viewer")
@@ -228,10 +308,49 @@ pub async fn invite_member(
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO invitations(id,organization_id,email,role,token_hash,invited_by,expires_at) VALUES($1,$2,$3,$4,$5,$6,now()+interval '7 days')").bind(id).bind(org).bind(&email).bind(&input.role).bind(digest(&token)).bind(user.id).execute(&mut *tx).await?;
     audit(&mut tx, org, user.id, "team.invited", id).await?;
+
+    // Queue the invitation itself, in this transaction. Until now an invite
+    // produced a link and nothing else, so every invitation had to be
+    // delivered by hand — the one step of the team flow that left the
+    // product. Enqueued inside the transaction so an invitation and its
+    // message cannot disagree about existing: no row, no mail, and a mail
+    // that fails is retried by the outbox worker rather than lost.
+    let accept_url = format!("{}/invite#{}", s.config.public_url, token);
+    let emailed = s.mail.available();
+    if emailed {
+        let workspace: String = sqlx::query_scalar("SELECT name FROM organizations WHERE id=$1")
+            .bind(org)
+            .fetch_one(&mut *tx)
+            .await?;
+        let subject = format!("{} invited you to {}", user.email, workspace);
+        // The role is named because accepting changes what the invitee can
+        // see, and the expiry because a week-old link failing silently is
+        // worse than being told.
+        let body = format!(
+            concat!(
+                "{} invited you to join the {} workspace on Vuuut Click as {}.\n",
+                "\n",
+                "Open this link to accept:\n",
+                "{}\n",
+                "\n",
+                "You will need a Vuuut Click account for {}. The invitation expires in 7 days ",
+                "and can be used once. If you were not expecting this, you can ignore it.\n",
+            ),
+            user.email, workspace, input.role, accept_url, email
+        );
+        sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body) VALUES($1,$2,$3,$4)")
+            .bind(Uuid::new_v4())
+            .bind(&email)
+            .bind(subject)
+            .bind(body)
+            .execute(&mut *tx)
+            .await?;
+    }
     tx.commit().await?;
     Ok(Invitation {
         id,
-        accept_url: format!("{}/invite#{}", s.config.public_url, token),
+        accept_url,
+        emailed,
     })
 }
 pub async fn invite(

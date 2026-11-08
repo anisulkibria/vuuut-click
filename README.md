@@ -58,3 +58,5 @@ The normal unit command explicitly skips the real-stack integration test. `--inc
 - [Ghost integration contract and inspected interfaces](docs/GHOST_INTEGRATION.md)
 
 GeoLite data attribution: This product includes support for GeoLite data created by MaxMind, available from https://www.maxmind.com. Licensed databases must be supplied by the operator; none are redistributed. Tinybird MIT attribution is in docs/TINYBIRD-LICENSE.
+
+Platform owners can open **Account & security** at `/owner/account` to change their display name/password, sign out other sessions, and enable authenticator MFA with one-use recovery codes. Owner recovery starts at `/owner/forgot-password`; it preserves MFA. Team invitations queue email through the configured transport (private files locally). Report overload and validation errors provide readable browser pages and structured API errors.

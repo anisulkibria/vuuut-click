@@ -351,9 +351,10 @@ pub async fn checkout(s: &AppState, h: &HeaderMap, org: Uuid, value: &str) -> Ap
         return Err(ApiError::bad("Selected plan is not available for checkout"));
     }
     let mut tx = s.store.pg.begin().await?;
-    sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
-        .bind(org)
-        .fetch_one(&mut *tx)
+    // Ownership is re-checked, but the workspace's status deliberately is
+    // not: a suspended or past-due workspace pays to recover, and refusing
+    // checkout would trap it in the state it is trying to leave.
+    workspace::lock_member_even_if_suspended(&mut tx, org, user.id, |role| role == Role::Owner)
         .await?;
     let paid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM subscriptions WHERE organization_id=$1 AND provider='stripe' AND provider_reference IS NOT NULL AND status IN ('active','past_due'))").bind(org).fetch_one(&mut *tx).await?;
     if paid {

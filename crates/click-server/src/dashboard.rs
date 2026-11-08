@@ -1,5 +1,5 @@
 //! Native Rust HTML/SVG dashboard. No client framework or dashboard build step.
-use crate::{api, auth, ApiError, AppResult, AppState};
+use crate::{api, auth, manage, ApiError, AppResult, AppState};
 use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
@@ -301,7 +301,7 @@ pub async fn overview(
     let Some(id) = q.site.or_else(|| sites.first().map(|w| w.id)) else {
         return Ok(Redirect::to("/websites").into_response());
     };
-    let (site, role) = auth::authorize_site(&s, &h, id, false).await?;
+    let (site, role, _queries) = auth::authorize_report(&s, &h, id).await?;
     let days = q.days.unwrap_or(7);
     let (start, end) = api::range(&api::Period { days: Some(days) })?;
     let view = q.view.as_deref().unwrap_or("overview");
@@ -464,19 +464,46 @@ pub async fn overview(
         .bind(id)
         .fetch_all(&s.store.pg)
         .await?;
+        let editable = role.can_edit_goals();
         for g in rows {
             let count = s.store.goal_count(&site, &g.event_name, start, end).await?;
+            // The row stays a readable row: name and event as text, as a
+            // table of values should be. Editing is a secondary action,
+            // folded into a disclosure on its own full-width row — the same
+            // shape the funnel panel uses. Putting the fields in the cells
+            // themselves was tried first and is worse: it takes the values
+            // out of the table's text, so the table stops being readable as
+            // one, which the browser suite caught immediately.
+            let actions = if editable {
+                format!(
+                    r#"<td class="row-actions"><form action="/goals/action" method="post" onsubmit="return confirm('Remove this goal? Its completions stay in your analytics.')"><input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{id}"><input type="hidden" name="goal" value="{goal}"><button class="btn outlined small">Remove</button></form></td>"#,
+                    goal = g.id,
+                )
+            } else {
+                String::new()
+            };
             goals.push_str(&format!(
-                "<tr><td>{}</td><td><code>{}</code></td><td class=number>{count}</td></tr>",
+                "<tr><td>{}</td><td><code>{}</code></td><td class=number>{count}</td>{actions}</tr>",
                 esc(&g.name),
                 esc(&g.event_name)
             ));
+            if editable {
+                goals.push_str(&format!(
+                    r#"<tr class="edit-row"><td colspan=4><details class="row-edit"><summary>Edit {name}</summary><form action="/goals/action" method="post" class="goal-form"><input type="hidden" name="action" value="update"><input type="hidden" name="site" value="{id}"><input type="hidden" name="goal" value="{goal}"><label>Goal name<input name="name" value="{name}" required maxlength="100"></label><label>Event name<input name="event_name" value="{event}" required maxlength="64"></label><button class="btn primary">Save goal</button></form></details></td></tr>"#,
+                    goal = g.id,
+                    name = esc(&g.name),
+                    event = esc(&g.event_name),
+                ));
+            }
         }
+        let columns = if editable { 4 } else { 3 };
         if goals.is_empty() {
-            goals =
-                "<tr><td colspan=3>No goals yet. Give an important action a name.</td></tr>".into();
+            goals = format!(
+                "<tr><td colspan={columns}>No goals yet. Give an important action a name.</td></tr>"
+            );
         }
-        let form = if role.can_edit_goals() {
+        let actions_header = if editable { "<th>Actions</th>" } else { "" };
+        let form = if editable {
             format!(
                 r#"<form action="/goals" method="post" class="goal-form"><input type="hidden" name="site" value="{id}"><label>Goal name<input name="name" required maxlength="100" placeholder="Newsletter signup"></label><label>Event name<input name="event_name" required maxlength="64" placeholder="newsletter_signup"></label><button class="btn primary">Create goal</button></form>"#
             )
@@ -484,7 +511,7 @@ pub async fn overview(
             String::new()
         };
         goals = format!(
-            r#"<section class="panel"><div class="panel-heading"><h2>Your goals</h2><span class="pill">Custom events</span></div><table><thead><tr><th>Goal</th><th>Event</th><th class="number">Completions</th></tr></thead><tbody>{goals}</tbody></table>{form}<p class="muted">Completions count accepted event IDs. Trigger an event with <code>vuuutClick.track('newsletter_signup')</code>.</p></section>"#
+            r#"<section class="panel"><div class="panel-heading"><h2>Your goals</h2><span class="pill">Custom events</span></div><div class="owner-table"><table><thead><tr><th>Goal</th><th>Event</th><th class="number">Completions</th>{actions_header}</tr></thead><tbody>{goals}</tbody></table></div>{form}<p class="muted">Completions count accepted event IDs. Trigger an event with <code>vuuutClick.track('newsletter_signup')</code>.</p></section>"#
         );
     }
     let geo = if site.is_demo {
@@ -726,6 +753,51 @@ pub async fn create_goal(
         },
     )
     .await?;
+    Ok(Redirect::to(&format!(
+        "/dashboard?site={}&view=events",
+        b.site
+    )))
+}
+/// The goal controls on the Events & goals panel.
+///
+/// One POST endpoint naming the action, because an HTML form can only GET or
+/// POST — the JSON API uses PATCH and DELETE on
+/// `/v1/websites/{id}/goals/{goal}`, which a browser form cannot send. The
+/// same shape as `/insights/action` and `/settings/action`.
+#[derive(Deserialize)]
+pub struct GoalAction {
+    action: String,
+    site: Uuid,
+    goal: Uuid,
+    name: Option<String>,
+    event_name: Option<String>,
+}
+pub async fn goal_action(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Form(b): Form<GoalAction>,
+) -> AppResult<Redirect> {
+    match b.action.as_str() {
+        "update" => {
+            manage::edit_goal(
+                &s,
+                &h,
+                b.site,
+                b.goal,
+                api::NewGoal {
+                    name: b.name.ok_or_else(|| ApiError::bad("Name your goal"))?,
+                    event_name: b
+                        .event_name
+                        .ok_or_else(|| ApiError::bad("Name the event this goal counts"))?,
+                },
+            )
+            .await?;
+        }
+        "delete" => {
+            manage::remove_goal(&s, &h, b.site, b.goal).await?;
+        }
+        _ => return Err(ApiError::bad("Unknown goal action")),
+    }
     Ok(Redirect::to(&format!(
         "/dashboard?site={}&view=events",
         b.site
