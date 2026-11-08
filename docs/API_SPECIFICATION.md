@@ -49,3 +49,45 @@ POST `/owner/actions` uses independent owner authentication plus exact Origin, a
 Owner account management lives at `/owner/account` (sidebar **Account & security**). Forms POST `/owner/account/action` with `action=profile|password|sessions|enroll|confirm|codes|disable`; see OpenAPI for fields. Setup displays an authenticator key, and confirmation displays ten recovery codes once. Current password is required for security changes; an enabled factor is also required for password changes, disabling MFA and replacing recovery codes. All owner account writes and platform actions recheck the session and grant inside their transaction.
 
 With MFA enabled, `/owner/auth/login` redirects to `/owner/auth/verify` and sets a five-minute pending cookie with audience `owner_pending`. POST a fresh authenticator or unused recovery `code` to that endpoint to get a full owner session; the challenge allows five attempts. A pending cookie cannot access either portal's private data. `/owner/forgot-password` and POST `/owner/account/reset/request` start separate owner email recovery. GET/POST `/owner/account/reset` completes with `token`, `password`, and `code` if MFA is enabled. Owner reset links are valid 30 minutes, single-use, and have five factor attempts. Recovery invalidates all sessions and tokens while preserving MFA. These are HTML form routes with exact Origin checks, not the customer JSON reset endpoints.
+
+
+## Native integration v1
+
+Operator credentials authorize `PUT /native/v1/tenants/{tenant}` with
+`{revision,name,origin,plan_id,state:"active"|"suspended"|"deleted"}`. Tenant IDs
+are 1–100 alphanumeric/underscore/hyphen characters; revisions start at 1.
+Identical retries return the same website UUID, public collection ID,
+website-scoped integration key, verification challenge/status and revision.
+Conflicting/stale revisions return 409. Deleted mappings are terminal, even
+after durable erasure. No cookie or public collection ID authorizes this API.
+
+Website integration credentials authorize POST
+`/native/v1/websites/{id}/connect` (`{issuer,jwks}`), `/exchange` (`{token}`),
+`/verify`, `/rotate` (random 64-hex `X-Click-Replacement-Key` header), and
+`/disconnect`. Connect pins keys only for the exact verified website origin;
+exchange validates the dedicated staff assertion and returns an opaque
+website-read-only bearer valid 60 seconds. Disconnect returns 204 and revokes
+the connector and delegated access. Rotation requires persisting the replacement
+before sending it, to recover uncertain responses. `/verify` independently
+checks the current origin/challenge's TXT record outside the DB lock and
+rechecks authorization and origin inside the commit transaction.
+
+See [GHOST_INTEGRATION.md](GHOST_INTEGRATION.md) for the full pinned-issuer/JWKS,
+consent, lifecycle, retry, privacy and server-only credential contract. Generic
+read keys still cannot write, integration keys still cannot directly read
+reports, and native access never creates customer/platform-owner membership.
+
+POST `/native/v1/websites/{id}/events` additionally requires
+`X-Click-Signature: t=<send-seconds>,v1=<HMAC-SHA256-hex>`, authenticating
+`timestamp + "." + raw JSON body` with the integration credential. The send
+window is 5 minutes past / 60 seconds future, body at most 16 KiB; the original
+occurred_at_ms is preserved across retries. Payload/202 schema matches
+`/backend-events`. Native CMS workers use this signed endpoint.
+
+`GET /v1/websites/{id}/native-report?days=7&path=/article/` returns
+`{activity:[{label,count}],page:{path,pageviews,visitors,sessions}|null}`.
+The optional post path groups CMS slash/non-slash aliases; traffic counts
+pageviews only and remains correct before ClickHouse merges. Eight authoritative
+CMS event kinds are aggregated independently of general top-100 event lists.
+Existing website read keys and native staff tokens authorize only their site,
+and normal report concurrency/period limits apply.

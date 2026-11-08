@@ -1,16 +1,16 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-08 (Asia/Dhaka). The user resumed work and requested completion of **Priority 1**. That priority is now complete for local development; see the completion section below. Earlier pause/checkpoint sections are historical. The local app remains at http://localhost:8082. Native integration (Priority 2) and production release gates remain separate unfinished work. On another device, AGENTS.md instructs the agent to read this file when asked to continue.
+Last handoff: 2026-11-09 (Asia/Dhaka). The user requested the full **Priority 2: native Vuuut/Vuuut-pro integration**. Implementation is complete across the three repositories and final regression verification is in progress; the latest results will be recorded below before completion. Priority 1 remains complete. Production release gates remain separate. Local Click stays on http://localhost:8082; existing credentials/data are preserved.
 
 ## What the user is building
 
-An independent commercial web analytics SaaS called **Vuuut Click**, with Rust application/server/dashboard, PostgreSQL control/durable acceptance, and self-hosted ClickHouse analytics. It must work for arbitrary websites, standalone Rust Ghost/Vuuut installations, and managed Rust Ghost(Pro)/Vuuut-pro tenants. Native CMS/hosting integration is a later unfinished milestone. The exact original 1,109-line requirements are portable in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md), not in an inaccessible old attachment.
+An independent commercial web analytics SaaS called **Vuuut Click**, with Rust application/server/dashboard, PostgreSQL control/durable acceptance, and self-hosted ClickHouse analytics. It must work for arbitrary websites, standalone Rust Ghost/Vuuut installations, and managed Rust Ghost(Pro)/Vuuut-pro tenants. Native CMS/hosting integration is now implemented under Priority 2; see its current verification section. The exact original 1,109-line requirements are portable in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md), not in an inaccessible old attachment.
 
 Accepted decisions and follow-up requirements:
 
 - Rust stable, Axum/Tokio/SQLx, official ClickHouse client, Rustls; dashboard is native Rust-rendered HTML/SVG. TypeScript is used for the browser tracker/API client only; no Node runtime or React server.
 - Rose Material 3 style matches existing Vuuut and Vuuut-pro; accessible responsive tables, light/dark/system themes.
-- Keep this service independent. Sibling repositories were inspected but not modified. Do not assume their schemas/interfaces without reading the actual code again.
+- Keep this service independent. The standalone service builds without sibling repositories. Native adapters were implemented in the inspected Vuuut and Vuuut-pro checkouts under Priority 2; inspect their current schemas/interfaces before further changes.
 - `run.sh` starts the complete local stack on **http://localhost:8082** and supports iterative development.
 - Public homepage `/` always stays accessible, including while logged into either portal.
 - Customer `/signin` and platform-owner `/owner/signin` must be different, with independent same-browser sessions. Workspace owner is not a platform owner.
@@ -62,7 +62,7 @@ Original machine project: `/Users/anisulkibria/Documents/Rust/Ghost/Vuuut-click`
 - Existing demo website: `Vuuut Journal · Demo`, id `2220b39d-ac4c-4830-9ed4-c242718129c0`. Existing real website stays separate.
 - Local private `.env`; Docker PostgreSQL on 55432, ClickHouse HTTP on 58123. Persistent named Docker volumes. Health `/healthz`, dependencies `/readyz`.
 - Main server log/PID: `.local/server.log`, `.local/server.pid`. Temporary staging 8083 was stopped; the verified build is running on 8082. Verify readiness; do not assume a process survived a device restart.
-- Migrations 0001–0009 PostgreSQL and 0001–0002 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
+- Migrations 0001–0010 PostgreSQL and 0001–0002 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
 
 ## Clone and run on another device
 
@@ -236,12 +236,12 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-On the original Mac, the working installed Chromium override is `/Users/anisulkibria/Library/Caches/ms-playwright/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium`. This path is machine-specific; on other devices install Playwright Chromium normally. Source `.env` for browser tests: owner/demo tests use the local operator CLI. Browser tests create their own test workspaces in the local development DB. Database integration tests create/drop isolated `click_it_*` databases. Do not delete arbitrary databases to clean up a failed test.
+On this Mac, use `CHROMIUM_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"` for Playwright. The older cached chromium-1194 executable is incomplete (its framework is missing). On other devices install Playwright Chromium normally. Source `.env` for browser tests: owner/demo tests use the local operator CLI. Browser tests create their own test workspaces in the local development DB. Database integration tests create/drop isolated `click_it_*` databases. Do not delete arbitrary databases to clean up a failed test.
 
 ## Resume priorities — do not restart from scratch
 
 1. **Finish product hardening around existing workflows — complete locally, 2026-11-08.** Goal/funnel editing/deletion, transactional workspace privilege rechecks, account/password/reset/promotion races, consistent HTML/API validation and overload errors, automatic invitation email queueing, owner profile/password/recovery/MFA UI, per-workspace report budgets and bounded journey aggregation are implemented and verified. Details and limits are in the completion section below. Production SMTP, distributed edge budgets and independent security/MFA review remain release gates under priorities 4–5.
-2. **Native Ghost/Vuuut and Vuuut-pro integration**: read docs/GHOST_INTEGRATION.md and re-inspect actual sibling code (not included in this standalone repo). Implement versioned idempotent provisioning, domain/lifecycle/entitlement synchronization, staff JWT/JWKS exchange with pinned issuers/audiences, server transactional CMS outboxes, retries/rotation/disconnect, tracker injection and native Admin reporting. Existing generic backend conversion endpoint/SDK is a foundation, not completed native integration. Never expose platform/integration credentials in browser content.
+2. **Native Ghost/Vuuut and Vuuut-pro integration — implemented; final regression verification in progress.** All requested components are present in the sibling repositories; see the new native integration section and docs/GHOST_INTEGRATION.md. Never expose platform/integration credentials in browser content.
 3. **Remaining analytics breadth** from original brief: richer content/engagement/returning/cohort and period comparisons, expanded funnel options, newsletter-specific reports, additional attribution dimensions, ROI only when authoritative ad-spend data exists. Define metric semantics and exact tests before UI claims.
 4. **Production commercial validation**: operator-configured Stripe test-account checkout/portal/cancel/past-due/webhook scenarios, real SMTP verification/reset delivery and invitation mail, email/DNS/abuse policies, plan/downgrade edge cases, retention fulfillment monitoring. No live charges are authorized by this local project task.
 5. **Operational release gates**: OTel and metrics/dashboards/alerts, distributed edge/request budgets, encrypted off-site backups with cross-store consistency and verified restore drills, dependency/image/license scanning, Linux image/TLS deployment, capacity/load benchmarks at 1M/10M/100M monthly events, independent security review. NATS JetStream is optional only when distributed queue requirements justify it; current PostgreSQL outbox is durable. Keep readiness, retry and dedup behavior through migrations.
@@ -265,7 +265,7 @@ The user explicitly resumed and asked to complete Priority 1. Completed the part
 
 Verification: formatting, Clippy with warnings denied, **17 unit tests + 11 real-database integration tests** with `--include-ignored`, npm clean install/check/build, and **6/6 Playwright scenarios**. The added integration suite covers concurrent password writes (only one succeeds), transactional invitation mail, report budget release, a reverse-ordered 1,200-event session with duplicate replay (count 1,200; exactly the earliest 100 steps), malformed/overload HTML/JSON, MFA replay/single-use recovery codes, challenge attempt exhaustion, reset audience isolation, preserved MFA and session revocation. The new browser scenario runs a temporary local server with the same databases and its own per-IP limiter, stops it afterwards, and exercises profile/enrollment/login/code replacement/password/disable while a customer stays signed in. Desktop/390px owner-security screenshots were inspected. Build restarted on 8082; persistent databases and existing local credentials are preserved.
 
-Production external-service/load/distributed-budget/security/recovery-drill gates are not claimed complete. The next unfinished feature priority is **2: native Ghost/Vuuut and Vuuut-pro integration**; re-read the integration contract and actual sibling code before changing them.
+Production external-service/load/distributed-budget/security/recovery-drill gates are not claimed complete. At that checkpoint, the next feature priority was **2: native Ghost/Vuuut and Vuuut-pro integration**. It is now implemented below; the next feature work is Priority 3.
 
 ## Owner panel typography — 2026-11-08
 
@@ -295,3 +295,132 @@ The user reported `/signin` failing. The page returned 200, but `/readyz` return
 - `crates/click-server/tests`, `tests/browser`: verification. `deploy`, `scripts`, `.github`: operations.
 
 The next agent should state which unfinished priority it is tackling, preserve all user decisions above, update this handoff with actual evidence, and keep localhost:8082 usable during development. Do not repeat permission requests for already authorized reversible local work. Stop when the user asks to pause.
+
+## Priority 2 — native Vuuut/Vuuut-pro integration (2026-11-09)
+
+The user explicitly requested the **full Priority 2**, including the sibling
+applications. The implementation and functional verification are now complete;
+local optimized-binary rebuild/restart checks are being finished before this
+handoff is marked final. All changes are uncommitted in **three separate Git
+repositories**. Do not transfer only the Click changes and expect an older CMS
+or hosting binary to support the connector.
+
+Implemented:
+
+- **Click control plane:** `/native/v1` versioned tenant snapshots keyed by
+  authenticated platform and tenant. Persisted revision/fingerprint conflicts,
+  stable lost-response replay, separate native workspace/website/entitlement,
+  operator-issued hashed platform credentials and registered DNS suffix trust.
+  Custom domains require independent TXT verification. Suspension, disable and
+  deletion stop access/collection; erasure uses the existing durable privacy
+  worker, retaining terminal mapping tombstones.
+- **Dedicated staff exchange:** website integration key plus a signed RS256
+  assertion with pinned public JWKS, exact issuer/dedicated audience, website,
+  internal staff subject, Owner/Administrator role, time bounds and one-use jti.
+  No issuer/JWKS URL discovery. Opaque hashed native read tokens last 60 seconds,
+  authorize one website and cannot create customer/owner sessions or submit
+  revenue. Generation, origin and key/workspace/platform state revoke access.
+- **CMS:** private connector state outside settings/public APIs; native Admin
+  reports at `/ghost/analytics/click/`, Owner connection/test/rotation/disconnect
+  and delivery retries; Administrator read access. Material 3 tables/forms,
+  empty/error states, phone overflow checks, no credentials in report HTML.
+  Consent-aware `ghost_foot` injection includes only public attributes. Exact
+  member/subscription/newsletter summaries, current CMS membership and selected
+  post traffic use authoritative counts, separate from top-list truncation.
+  Post analytics use the real permalink resolver; period tabs retain the post.
+- **Transactional delivery:** SQLite/MySQL source triggers capture member,
+  subscription, payment/refund and newsletter facts in their source transaction.
+  Signed raw-body HMAC-SHA256 native deliveries carry stable hashed source IDs,
+  original times and minimized facts only. Persistent retries/dead letters and
+  duplicate acceptance do not inflate usage. Integration keys are rechecked
+  under the same acceptance lock, including a proven revocation race.
+- **Hosting:** transactional tenant/plan/domain dirty state, exact persisted
+  request snapshots and revisions, an independent reconciliation worker,
+  per-site status/TXT instructions/retry/rotate/disconnect/reconnect controls.
+  Only website keys enter private tenant config; exports scrub them and retain
+  a disabled hosting marker. Hosted policy always overrides old standalone
+  connector state, including during suspension/disconnect/restore. Local
+  file/restart errors preserve retry state. Restoring a terminally erased site
+  creates a new incarnation/mapping; the CMS clears old-target queued records.
+- **Provider facts:** paid invoices (including first payment) are distinct from
+  one-off checkout receipts; stable source IDs dedupe invoice aliases/replays.
+  Individual successful refunds dedupe cumulative charge notifications; large
+  refund lists use bounded pagination. New Stripe webhook registrations include
+  invoices/refunds; native Admin can explicitly upgrade an existing endpoint's
+  event list without rotating its signing secret. No real provider call/charge
+  was used for verification.
+
+Additive migrations: **Click PostgreSQL 0010**, **CMS SQLite/MySQL 0038–0039**,
+**hosting SQLite/MySQL 0004–0005**. Applied older migrations were not edited.
+Hosting MySQL migration startup now aligns future-table database collation with
+the existing unicode_ci tables, fixing the old 0003 foreign-key failure on a
+fresh MySQL 8+ default; existing columns and migration checksums are untouched.
+
+Verified in this session:
+
+- Click formatting, warnings-denied Clippy and full workspace tests with
+  `--include-ignored`: **17 unit + 15 real PostgreSQL/ClickHouse integration
+  tests passed**, none ignored in that run. Native tests include provisioning
+  concurrency/replay, cross-platform/site isolation, staff role/audience/time
+  rejection, one-use assertions, signed-body tamper/time rejection, credential
+  rotation/suspension/erasure and lock-contended revocation before acceptance.
+  Final exact-report tests prove top-100 independence, slash aliases, pageview
+  filtering, read isolation and duplicate replay before ClickHouse merges.
+- **2/2 real three-repository bridge scenarios**, including actual CMS worker,
+  identity signer, Admin/theme renderers, hosting reconciler and Click stores.
+  Tested consent-gated real browser collection, staff restrictions, lost
+  rotation/disconnect acknowledgements, forced local config failure recovery,
+  terminal restore with a fresh mapping, and old-queue isolation. Desktop and
+  390px native Admin screenshots were inspected. The final run also checks
+  post selection and retaining that selection while changing the report period,
+  hosted backup/disable policy and existing-post links; both scenarios passed
+  together in 59.7 seconds.
+- **6/6 existing Playwright scenarios** passed together against a fresh 8083
+  server using the same real development stores. The first run while competing
+  builds were paging hit two 60-second timeouts; the final run used a 180-second
+  harness limit and finished the entire suite in 49.6 seconds. No functional
+  assertions were loosened. Temporary 8083 server was stopped; main 8082 remains.
+- `npm ci`, TypeScript check and all tracker bundles passed. No private existing
+  development-account password was found in source candidates. OpenAPI JSON,
+  shell syntax and whitespace checks passed.
+- CMS **88 database unit tests**, **72 headless API tests** and transactional
+  outbox test passed on SQLite. The source outbox test and native signed-provider
+  payment/refund/idempotency/forced-rollback test also passed on **real MySQL**.
+  Test DDL uses raw execution where MySQL does not support prepared CREATE/DROP
+  TRIGGER; source application persistence still uses parameterized queries.
+- Hosting full workspace suite passed (one pre-existing ignored documentation
+  example, not counted as verified), including 153 database unit tests, 44
+  provisioning tests and existing web/billing/proxy/supervisor suites. The 44
+  provisioning unit tests were rerun successfully after the backup-policy fix. Its
+  separate **15/15 real MySQL tests** and four schema-parity checks passed.
+  MySQL tests which return early without a server in the normal workspace run
+  were explicitly rerun against the actual server, not treated as verified by
+  their skip path.
+- Sibling Clippy retains unrelated existing lint warnings under this newer Rust
+  toolchain; warnings-denied runs stop on those older warnings. New native
+  hosting and CMS lines have no diagnostics. Click's warnings-denied Clippy is clean.
+
+Limitations that remain intentional: automatic CMS events do not stitch member
+identities to browser sessions, so their revenue attribution is Direct unless
+an application explicitly supplies consented session IDs through the backend
+API. Native reports are basic traffic/activity/net revenue; the richer analytics
+in Priority 3 remain separate. Real public DNS/TLS, SMTP/Stripe account delivery,
+independent SSO/security review, distributed budgets, backups/restore drills and
+production/load/scanning gates remain priorities 4–6. No production readiness
+claim, live payment, remote publication or Git commit was performed.
+
+The complete setup/contract is [docs/GHOST_INTEGRATION.md](docs/GHOST_INTEGRATION.md),
+with sibling [CMS notes](../Vuuut/docs/native-click.md) and
+[hosting notes](../Vuuut-pro/NATIVE_CLICK.md). The optional bridge suite lives at
+`tests/native-bridge`; it requires both sibling checkouts and the trusted local
+Click environment. Set `NATIVE_TEST_BROWSER=1` and a working
+`CHROMIUM_EXECUTABLE_PATH` to include its real browser phases.
+
+Local runtime follow-up: Click is rebuilt and ready on 8082. An ignored private
+platform registration/configuration for the local Vuuut-pro development stack
+has been prepared (`.local/native-pro-platform.json`, mode 0600; ignored hosting
+`run/pro.json`). Its previous private config is backed up in
+`.local/native-pro-config-before.json` (0600). Existing account passwords are
+unchanged. Sibling optimized binaries and final native synchronization smoke
+checks are still being completed; update this paragraph with actual readiness
+and synchronization results before calling the runtime handoff final.

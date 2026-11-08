@@ -3,7 +3,7 @@
   "info": {
     "title": "Vuuut Click API",
     "version": "0.1.0",
-    "description": "Independent Rust analytics SaaS. Cookie mutations require exact PUBLIC_URL Origin. Website read keys authorize reports; integration keys authorize backend events only. Stripe webhooks require verified provider signatures. Native Ghost provisioning/SSO remains pending."
+    "description": "Independent Rust analytics SaaS. Cookie mutations require exact PUBLIC_URL Origin. Website read keys authorize reports; integration keys authorize backend events and native connector control. Stripe webhooks require verified provider signatures. Native v1 provisioning and pinned-key staff exchange are implemented; see GHOST_INTEGRATION.md."
   },
   "servers": [
     {
@@ -370,6 +370,9 @@
           },
           {
             "apiKey": []
+          },
+          {
+            "nativeRead": []
           }
         ],
         "parameters": [
@@ -423,6 +426,9 @@
           },
           {
             "apiKey": []
+          },
+          {
+            "nativeRead": []
           }
         ],
         "parameters": [
@@ -483,6 +489,9 @@
           },
           {
             "apiKey": []
+          },
+          {
+            "nativeRead": []
           }
         ],
         "parameters": [
@@ -3278,6 +3287,601 @@
           }
         }
       }
+    },
+    "/native/v1/tenants/{tenant}": {
+      "put": {
+        "summary": "Apply a versioned native tenant snapshot",
+        "description": "Same revision and exact body returns the same mapping and website integration credential; stale/conflicting snapshots return 409. Deletion is terminal and durable.",
+        "security": [
+          {
+            "nativePlatform": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Invalid credential/assertion"
+          },
+          "403": {
+            "description": "Unverified origin or disabled workspace"
+          },
+          "404": {
+            "description": "Inaccessible website"
+          },
+          "409": {
+            "description": "Stale/conflicting/terminal revision"
+          },
+          "429": {
+            "description": "Rate limit"
+          },
+          "200": {
+            "description": "Success"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "origin": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "plan_id": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "suspended",
+                      "deleted"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "name",
+                  "origin",
+                  "plan_id",
+                  "state"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/native/v1/websites/{id}/connect": {
+      "post": {
+        "summary": "Pin the verified CMS issuer and RSA JWKS",
+        "description": "Exact verified website origin issuer only. One to four distinct RS256 RSA public keys, minimum 2048 bits. Identical retries preserve access; changed keys revoke prior native sessions.",
+        "security": [
+          {
+            "integrationKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Invalid credential/assertion"
+          },
+          "403": {
+            "description": "Unverified origin or disabled workspace"
+          },
+          "404": {
+            "description": "Inaccessible website"
+          },
+          "409": {
+            "description": "Stale/conflicting/terminal revision"
+          },
+          "429": {
+            "description": "Rate limit"
+          },
+          "200": {
+            "description": "Success"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "issuer": {
+                    "type": "string"
+                  },
+                  "jwks": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "issuer",
+                  "jwks"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/native/v1/websites/{id}/exchange": {
+      "post": {
+        "summary": "Exchange a dedicated signed CMS staff assertion",
+        "description": "Requires RS256 pinned signature, dedicated issuer/audience, Owner or Administrator role, matching website, time bounds and one-use jti. Returns access_token, token_type, expires_in=60 and website_id. Does not mint a customer or owner cookie.",
+        "security": [
+          {
+            "integrationKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Invalid credential/assertion"
+          },
+          "403": {
+            "description": "Unverified origin or disabled workspace"
+          },
+          "404": {
+            "description": "Inaccessible website"
+          },
+          "409": {
+            "description": "Stale/conflicting/terminal revision"
+          },
+          "429": {
+            "description": "Rate limit"
+          },
+          "200": {
+            "description": "Success"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "maxLength": 8192
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/native/v1/websites/{id}/rotate": {
+      "post": {
+        "summary": "Replace a website integration credential",
+        "description": "Persist a random 32-byte hex replacement before sending; recover a lost response by reconnecting with that replacement. Revokes old delegated sessions.",
+        "security": [
+          {
+            "integrationKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Click-Replacement-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Invalid credential/assertion"
+          },
+          "403": {
+            "description": "Unverified origin or disabled workspace"
+          },
+          "404": {
+            "description": "Inaccessible website"
+          },
+          "409": {
+            "description": "Stale/conflicting/terminal revision"
+          },
+          "429": {
+            "description": "Rate limit"
+          },
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/native/v1/websites/{id}/disconnect": {
+      "post": {
+        "summary": "Revoke a native connector and delegated access",
+        "description": "An identical retry can confirm an already committed disconnect using only its matching revoked credential.",
+        "security": [
+          {
+            "integrationKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Invalid credential/assertion"
+          },
+          "403": {
+            "description": "Unverified origin or disabled workspace"
+          },
+          "404": {
+            "description": "Inaccessible website"
+          },
+          "409": {
+            "description": "Stale/conflicting/terminal revision"
+          },
+          "429": {
+            "description": "Rate limit"
+          },
+          "204": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/native/v1/websites/{id}/verify": {
+      "post": {
+        "summary": "Verify the current website DNS TXT challenge",
+        "description": "Checks _vuuut-click.<host> for the exact verification challenge and rechecks credential/origin under the commit lock.",
+        "security": [
+          {
+            "integrationKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Invalid credential/assertion"
+          },
+          "403": {
+            "description": "Unverified origin or disabled workspace"
+          },
+          "404": {
+            "description": "Inaccessible website"
+          },
+          "409": {
+            "description": "Stale/conflicting/terminal revision"
+          },
+          "429": {
+            "description": "Rate limit"
+          },
+          "204": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/native/v1/websites/{id}/events": {
+      "post": {
+        "summary": "Accept a raw-body-signed native CMS event",
+        "responses": {
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden or invalid Origin"
+          },
+          "404": {
+            "description": "Not found or inaccessible"
+          },
+          "409": {
+            "description": "Conflict or allowance reached"
+          },
+          "429": {
+            "description": "Rate or quota limit"
+          },
+          "503": {
+            "description": "Service unavailable"
+          },
+          "202": {
+            "description": "Success"
+          }
+        },
+        "description": "HMAC-SHA256 over timestamp + period + raw body with the integration credential; timestamp send window is 5 minutes past / 60 seconds future. Preserves original event time and idempotency. Maximum 16 KiB.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Click-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "t=1794153600,v1=<64-hex-HMAC>"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "external_id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "payment",
+                      "refund",
+                      "member_signup",
+                      "subscription_started",
+                      "subscription_cancelled",
+                      "newsletter_sent",
+                      "newsletter_open",
+                      "newsletter_click"
+                    ]
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "visitor_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "amount_minor": {
+                    "type": "integer"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "occurred_at_ms": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "external_id",
+                  "kind"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "integrationKey": []
+          }
+        ]
+      }
+    },
+    "/v1/websites/{id}/native-report": {
+      "get": {
+        "summary": "Exact basic CMS activity and optional per-post traffic",
+        "description": "Eight authoritative backend event kinds are counted independently of top-list truncation. Optional local path groups slash/non-slash aliases for one CMS post. Replay-safe raw queries; website-only read authorization and report budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "description": "Local post path without query, fragment, controls or protocol-relative prefix."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact native activity and optional selected-post metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "activity",
+                    "page"
+                  ],
+                  "properties": {
+                    "activity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "format": "int64"
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "pageviews": {
+                              "type": "integer"
+                            },
+                            "visitors": {
+                              "type": "integer"
+                            },
+                            "sessions": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period or path"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Inaccessible website"
+          },
+          "503": {
+            "description": "Report budget exhausted"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3301,6 +3905,21 @@
         "in": "cookie",
         "name": "click_owner_pending",
         "description": "Five-minute password proof. Never authorizes owner or customer data. Only for completing /owner/auth/verify."
+      },
+      "nativePlatform": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Operator-issued platform credential; server only. Never installed in a CMS."
+      },
+      "integrationKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Website-scoped integration credential; backend events and native control only."
+      },
+      "nativeRead": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Opaque website-read-only token issued by native staff exchange; valid 60 seconds."
       }
     },
     "schemas": {

@@ -19,7 +19,7 @@ Dockerfile builds a Rust binary and runs it unprivileged. `deploy/compose.produc
 5. Review image vulnerability scans and version pins, then `docker compose --env-file /secure/production.env -f deploy/compose.production.yml up -d --build`.
 6. Confirm readiness inside the private app container, create an account, register and verify a domain and test a browser event against ClickHouse. Public HTTPS is required for secure cookies.
 
-Use the same deployment/API for standalone Ghost. Hosted Ghost plan lifecycle and SSO wiring are pending; see GHOST_INTEGRATION.md.
+Use the same deployment/API for standalone Ghost. Native Vuuut/Vuuut-pro provisioning, plan/domain lifecycle and server-side staff exchange are implemented; see GHOST_INTEGRATION.md for opt-in configuration.
 
 ## GeoIP updates
 
@@ -52,3 +52,14 @@ The privacy worker applies the smaller of website/plan retention to real website
 Grant access only through `click-server grant-owner <existing-account-email>`, then sign in at `/owner/signin`. Open **Account & security** to enroll an authenticator and store the one-use recovery codes privately. Maintain a reliable, synchronized system clock. Configure and verify SMTP before depending on `/owner/forgot-password`; local development writes the recovery link to `.local/mail` instead of sending email. Email recovery preserves MFA. Losing both the authenticator and all recovery codes requires an operator-assisted identity/recovery process, not a customer reset link. The database contains authenticator shared secrets; secure its access, storage and backups.
 
 Team invitations use the same transactional mail outbox and transport. The UI says when a message is queued or when a link must be shared manually. Monitor delivery failures before assuming that an invite reached an inbox.
+
+
+Native integration is opt-in. Deploy the matching CMS (0038–0039) and hosting (0004–0005)
+builds alongside Click's additive PostgreSQL migration 0010. Register the
+platform via the operator CLI and keep its credential only in private platform
+configuration; see GHOST_INTEGRATION.md. Restart hosting after platform key or
+plan-map changes to reconcile new revisions. Back up mapping/tombstone state
+with the control DB. A credential rotation/disconnect must be acknowledged;
+retry uncertain operations using the persisted replacement/version. Public TLS,
+DNS, real payment provider/SMTP delivery and independent SSO review remain
+external validation gates.

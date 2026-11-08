@@ -318,6 +318,9 @@ pub async fn authorize_site(
         if manage {
             return Err(ApiError::not_found());
         }
+        if let Some(site) = crate::native::authorized_site(state, token, site_id).await? {
+            return Ok((site, Role::Viewer));
+        }
         let site: Option<Website> = sqlx::query_as("SELECT w.id,w.organization_id,w.name,w.origin,w.collection_id,w.verification_token,w.verified_at,w.active,w.is_demo FROM websites w JOIN api_keys k ON k.website_id=w.id WHERE w.id=$1 AND k.token_hash=$2 AND k.revoked_at IS NULL AND k.scope='read' AND w.deletion_requested_at IS NULL")
             .bind(site_id).bind(digest(token)).fetch_optional(&state.store.pg).await?;
         return site

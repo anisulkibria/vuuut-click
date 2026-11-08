@@ -26,6 +26,47 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("migrations applied");
         return Ok(());
     }
+    if mode == "native-platform" {
+        let id = std::env::args().nth(2).ok_or_else(||anyhow::anyhow!("Usage: native-platform <id> <trusted-domain-suffix>; supply NATIVE_PLATFORM_TOKEN privately in the environment"))?;
+        let suffix = std::env::args()
+            .nth(3)
+            .ok_or_else(|| anyhow::anyhow!("Missing trusted domain suffix"))?
+            .to_ascii_lowercase();
+        let token = std::env::var("NATIVE_PLATFORM_TOKEN")?;
+        anyhow::ensure!(
+            !id.is_empty()
+                && id.len() <= 100
+                && token.len() >= 32
+                && token.len() <= 256
+                && !suffix.is_empty()
+                && suffix.len() <= 253
+                && suffix
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || b".-".contains(&c)),
+            "Invalid platform registration"
+        );
+        let mut tx = store.pg.begin().await?;
+        sqlx::query("INSERT INTO native_platforms(id,token_hash,domain_suffix) VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET token_hash=EXCLUDED.token_hash,domain_suffix=EXCLUDED.domain_suffix,active=true")
+            .bind(&id).bind(click_core::digest(&token)).bind(&suffix).execute(&mut *tx).await?;
+        // Platform rotation invalidates all previous tenant credentials. A
+        // replay under the new platform token must use a higher revision.
+        sqlx::query("UPDATE api_keys SET revoked_at=now() WHERE website_id IN (SELECT website_id FROM integration_mappings WHERE platform_id=$1) AND revoked_at IS NULL").bind(&id).execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM native_sessions WHERE website_id IN (SELECT website_id FROM integration_mappings WHERE platform_id=$1)").bind(&id).execute(&mut *tx).await?;
+        tx.commit().await?;
+        tracing::info!(platform_id=%id,"native platform registered; credentials were not logged");
+        return Ok(());
+    }
+    if mode == "native-platform-disable" {
+        let id = std::env::args()
+            .nth(2)
+            .ok_or_else(|| anyhow::anyhow!("Usage: native-platform-disable <id>"))?;
+        sqlx::query("UPDATE native_platforms SET active=false WHERE id=$1")
+            .bind(&id)
+            .execute(&store.pg)
+            .await?;
+        tracing::info!(platform_id=%id,"native platform disabled");
+        return Ok(());
+    }
     if mode == "seed-demo" {
         if !config.allow_localhost || config.secure_cookie {
             anyhow::bail!("Demo seeding is allowed only in local development");

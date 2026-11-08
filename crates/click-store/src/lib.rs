@@ -153,6 +153,28 @@ impl Store {
         country: &str,
         agent: &str,
     ) -> Result<Acceptance, AcceptError> {
+        self.accept_checked(site, events, country, agent, None)
+            .await
+    }
+    /// Integration credentials are rechecked under the acceptance lock so a
+    /// revoked key cannot complete a request that waited behind its revocation.
+    pub async fn accept_integration(
+        &self,
+        site: &Website,
+        events: Vec<CleanEvent>,
+        token_hash: &str,
+    ) -> Result<Acceptance, AcceptError> {
+        self.accept_checked(site, events, "ZZ", "backend", Some(token_hash))
+            .await
+    }
+    async fn accept_checked(
+        &self,
+        site: &Website,
+        events: Vec<CleanEvent>,
+        country: &str,
+        agent: &str,
+        integration_hash: Option<&str>,
+    ) -> Result<Acceptance, AcceptError> {
         if site.is_demo {
             return Err(AcceptError::Quota);
         }
@@ -162,7 +184,14 @@ impl Store {
             .bind(site.organization_id)
             .fetch_one(&mut *tx)
             .await?;
-        let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM websites w JOIN organizations o ON o.id=w.organization_id WHERE w.id=$1 AND w.active AND NOT w.is_demo AND w.deletion_requested_at IS NULL AND w.verified_at IS NOT NULL AND o.status='active')").bind(site.id).fetch_one(&mut *tx).await?;
+        if let Some(hash) = integration_hash {
+            let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM api_keys WHERE website_id=$1 AND token_hash=$2 AND scope='integration' AND revoked_at IS NULL)")
+                .bind(site.id).bind(hash).fetch_one(&mut *tx).await?;
+            if !allowed {
+                return Err(AcceptError::Disabled);
+            }
+        }
+        let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM websites w JOIN organizations o ON o.id=w.organization_id WHERE w.id=$1 AND w.active AND NOT w.is_demo AND w.deletion_requested_at IS NULL AND w.verified_at IS NOT NULL AND o.status='active' AND NOT EXISTS(SELECT 1 FROM integration_mappings m JOIN native_platforms np ON np.id=m.platform_id WHERE m.website_id=w.id AND NOT np.active))").bind(site.id).fetch_one(&mut *tx).await?;
         if !active {
             return Err(AcceptError::Disabled);
         }

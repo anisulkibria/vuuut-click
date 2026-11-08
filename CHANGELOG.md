@@ -20,3 +20,21 @@
 - Add ordered funnels, latest-instance Web Vitals, authoritative backend conversion events and multi-model net revenue attribution with typed Rust/TypeScript clients.
 - Add owner workspace status, manual allowance and dead-letter controls with auditing.
 - Preserve the full original brief and portable continuation instructions for a deliberate development pause.
+
+## 2026-11-09 — Native integration (Priority 2)
+
+- Add operator-scoped versioned native provisioning, verified domain/lifecycle/
+  entitlement sync, replay-safe credential derivation and terminal erasure.
+- Add pinned-key dedicated staff assertions and 60-second website-only read
+  access; signed native event bodies, persistent source queues and revocation
+  checks inside acceptance transactions.
+- Wire sibling CMS private connection/settings, consent-aware tracker injection,
+  native Admin reports, transactional facts and deduplicated invoice/refund
+  handling; wire hosting reconciliation/status/controls and fresh restoration
+  mappings with old-queue isolation and authoritative hosting disable policy.
+- Add selected-post traffic, exact member/subscription/newsletter summaries and
+  current CMS membership counts to native reports, with desktop/phone checks.
+- Add Click migration 0010 and sibling additive migrations 0038–0039/0004–0005,
+  typed Rust native SDK methods, OpenAPI/setup/security documentation and real
+  cross-application/database/browser verification. See CONTINUE.md for evidence
+  and the separate production release gates.

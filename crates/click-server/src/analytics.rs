@@ -597,7 +597,7 @@ pub async fn backend_event(
     clean.currency = currency;
     let accepted = s
         .store
-        .accept(&site, vec![clean], "ZZ", "backend")
+        .accept_integration(&site, vec![clean], &click_core::digest(token))
         .await
         .map_err(|e| match e {
             click_store::AcceptError::Quota => ApiError {

@@ -191,6 +191,11 @@ pub async fn create_website(
 pub async fn verify_website(s: &AppState, h: &HeaderMap, id: Uuid) -> AppResult<()> {
     auth::csrf(s, h)?;
     let (site, _) = auth::authorize_site(s, h, id, true).await?;
+    check_website_dns(&site).await?;
+    confirm_website_verification(s, h, &site).await
+}
+
+pub async fn check_website_dns(site: &Website) -> AppResult<()> {
     let url = Url::parse(&site.origin).map_err(ApiError::internal)?;
     let host = url
         .host_str()
@@ -219,7 +224,7 @@ pub async fn verify_website(s: &AppState, h: &HeaderMap, id: Uuid) -> AppResult<
     }) {
         return Err(ApiError::bad("DNS verification challenge does not match"));
     }
-    confirm_website_verification(s, h, &site).await
+    Ok(())
 }
 
 /// Commit a successful DNS lookup only for the exact origin and challenge

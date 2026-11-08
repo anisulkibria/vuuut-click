@@ -37,3 +37,25 @@ Malformed JSON/form/path/query inputs use the common JSON error envelope. HTML n
 Invitations and their email queue records commit in the same transaction. API `emailed` means queued, not confirmed delivery. Email includes workspace, role, expiry and the fragment acceptance link; the returned link remains available for manual sharing. The recipient must sign in with the invited email. SMTP uses the configured account mail transport; development writes private files. Delivery retries may duplicate a message if the SMTP service accepts it before a local commit fails; invitation acceptance is still single-use.
 
 Implementation references: [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238), [ClickHouse groupArraySorted](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/grouparraysorted).
+
+
+## Native connector boundaries
+
+`native_platforms` grants operator-selected domain suffix authority; its token
+is hashed and never installed in a CMS. A custom origin outside that authority
+needs an independent TXT verification. JWKS are pinned through an authenticated
+website connector; JWTs never initiate network discovery. RS256, issuer,
+dedicated audience, role, website, expiry/issued-time bounds and one-use jti
+are checked. Opaque staff access lasts 60 seconds and grants one website's
+report reads only; it never creates a customer or owner session. Generation,
+credential revocation, platform/workspace/website state and the current origin
+are rechecked on native reads. Integration credentials are rechecked under the
+same workspace lock as durable event acceptance.
+
+CMS integration state is outside settings/public APIs and only public collector
+attributes enter theme context. Hosting exports scrub native credentials from
+generated configuration. Automatic conversions do not join member identities
+to browser sessions. Transactional source outboxes transmit hashed event IDs
+and minimized facts only. See GHOST_INTEGRATION.md for exact retry/dead-letter,
+consent and supported provider event behavior. Independent SSO/security review
+and production service/restore/load gates remain required.

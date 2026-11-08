@@ -32,7 +32,11 @@ hmac.workspace = true
 async-trait.workspace = true
 lettre.workspace = true
 clickhouse.workspace = true
+jsonwebtoken.workspace = true
 
 [dev-dependencies]
 reqwest.workspace = true
 clickhouse.workspace = true
+
+rsa = { version = "0.9", features = ["pem"] }
+base64 = "0.22"

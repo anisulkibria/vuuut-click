@@ -11,3 +11,13 @@ Metrics: page views are unique accepted pageview event IDs. Visitors are distinc
 Per-tenant TTL changes and deletion workflows are pending. Do not promise plan-specific retention until applied and verified in raw and aggregate storage.
 
 Migration 0002 adds explicit platform_owners grants and a constrained session audience (`user` or `owner`). Customer workspace membership roles never imply platform ownership. Both cookie names and database session types are independent; moving a token between cookies cannot change its audience. Granting platform ownership revokes that account's former customer sessions, and owner authentication checks the current grant on every request. SQLx migration directories are watched by click-store/build.rs so incremental builds embed newly added migrations.
+
+
+Native migration 0010 adds operator `native_platforms`, version/fingerprint/state
+columns on `integration_mappings`, pinned `native_connections`, opaque hashed
+`native_sessions` and one-use `native_assertions`. Mapping website references
+become nullable with ON DELETE SET NULL so terminal tombstones survive erasure.
+Native tenants have a separate organization/subscription/website and no implicit
+Click user membership. CMS 0038–0039 and platform 0004–0005 (both SQLite/MySQL) are in the
+sibling repositories; they hold private connection/source outbox and durable
+lifecycle revisions respectively. No sibling DB schema is imported into Click.

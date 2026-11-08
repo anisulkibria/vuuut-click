@@ -2,7 +2,7 @@
 
 Independent Rust analytics SaaS in the same Material 3 style as Vuuut and Vuuut-pro. Rust renders the dashboard directly; there is no React/Next/Node server. PostgreSQL durably accepts events and meters usage; a retrying worker delivers to ClickHouse; reports query actual analytics data.
 
-The main standalone SaaS workflows and advanced reports are implemented for local development. **Production release gates and native Ghost provisioning/SSO remain unfinished.** Start with [CONTINUE.md](CONTINUE.md) to resume on any device; the full original requirements are preserved in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md).
+The main standalone SaaS workflows and advanced reports are implemented for local development. Native Vuuut/Vuuut-pro integration is implemented, with final regression verification recorded in the handoff. **Production release gates remain unfinished.** Start with [CONTINUE.md](CONTINUE.md) to resume on any device; the full original requirements are preserved in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md).
 
 ## Run and experience the app
 
@@ -55,7 +55,7 @@ The normal unit command explicitly skips the real-stack integration test. `--inc
 - [Tracker and consent](docs/TRACKER.md)
 - [Security/privacy and release gates](docs/SECURITY.md)
 - [Deployment and operations](docs/DEPLOYMENT.md)
-- [Ghost integration contract and inspected interfaces](docs/GHOST_INTEGRATION.md)
+- [Native Vuuut/Vuuut-pro integration and setup](docs/GHOST_INTEGRATION.md)
 
 GeoLite data attribution: This product includes support for GeoLite data created by MaxMind, available from https://www.maxmind.com. Licensed databases must be supplied by the operator; none are redistributed. Tinybird MIT attribution is in docs/TINYBIRD-LICENSE.
 

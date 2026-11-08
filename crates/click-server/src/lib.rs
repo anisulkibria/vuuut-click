@@ -10,6 +10,7 @@ pub mod jobs;
 pub mod landing;
 pub mod mail;
 pub mod manage;
+pub mod native;
 pub mod owner;
 pub mod owner_security;
 pub mod settings;
@@ -375,6 +376,7 @@ async fn html_errors(req: Request, next: Next) -> Response {
 
 pub fn app(state: AppState) -> Router {
     Router::new()
+        .merge(native::router())
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(api::ready))
         .route("/", get(landing::home))
