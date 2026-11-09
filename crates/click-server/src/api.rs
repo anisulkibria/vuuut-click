@@ -23,6 +23,12 @@ pub async fn ready(State(state): State<AppState>) -> AppResult<&'static str> {
         .execute()
         .await
         .map_err(ApiError::internal)?;
+    if state.config.require_geoip && !state.geoip_service().available() {
+        return Err(ApiError {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: "Connect MaxMind in the owner console before collecting analytics",
+        });
+    }
     Ok("ready")
 }
 pub async fn register(
@@ -361,6 +367,12 @@ pub async fn collect(
     body: axum::body::Bytes,
 ) -> AppResult<Response> {
     let site = collection_site(&s, &h, &token).await?;
+    if s.config.require_geoip && !s.geoip_service().available() {
+        return Err(ApiError {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: "Country enrichment is awaiting operator configuration",
+        });
+    }
     // Accept text/plain JSON for sendBeacon, as well as application/json.
     let batch: Batch =
         serde_json::from_slice(&body).map_err(|_| ApiError::bad("Invalid event batch"))?;
@@ -391,7 +403,7 @@ pub async fn collect(
         h.get("x-forwarded-for").and_then(|v| v.to_str().ok()),
         &s.config.trusted_proxies,
     );
-    let country = s.geoip.country(ip);
+    let country = s.geoip_service().country(ip);
     s.operations
         .collection(&s.store, site.organization_id, events.len())
         .await?;

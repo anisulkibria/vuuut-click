@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import shutil
 import urllib.parse
 import urllib.request
 import psycopg
@@ -52,7 +53,10 @@ def pg_tool(tool, database, *, output=None, input_file=None):
         options='--format=custom --no-owner --no-acl' if tool=='pg_dump' else '--exit-on-error --single-transaction --no-owner --no-acl'
         command=['docker','exec','-i',container,'sh','-c','export PGPASSWORD="$POSTGRES_PASSWORD"; exec '+tool+' --username="$POSTGRES_USER" '+options+' --dbname="$1"','sh',database]
     else:
-        command=[tool,'--no-owner','--no-acl','--dbname='+database]
+        directory=os.environ.get('BACKUP_PG_BINDIR') or os.environ.get('LOCAL_PG_BINDIR')
+        executable=str(Path(directory)/tool) if directory else shutil.which(tool)
+        if not executable or not Path(executable).is_file():raise RuntimeError('Install matching PostgreSQL client tools or set LOCAL_PG_BINDIR')
+        command=[executable,'--no-owner','--no-acl','--dbname='+database]
         command+=['--format=custom'] if tool=='pg_dump' else ['--exit-on-error','--single-transaction']
     env=os.environ.copy();parsed=urllib.parse.urlsplit(env['DATABASE_URL']);env.update(PGHOST=parsed.hostname or '',PGPORT=str(parsed.port or 5432),PGUSER=urllib.parse.unquote(parsed.username or ''),PGPASSWORD=urllib.parse.unquote(parsed.password or ''))
     for key,value in urllib.parse.parse_qsl(parsed.query):

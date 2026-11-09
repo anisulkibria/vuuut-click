@@ -74,7 +74,7 @@ pub async fn user(state: &AppState, headers: &HeaderMap) -> AppResult<User> {
         .bind(digest(&token)).fetch_optional(&state.store.pg).await?.ok_or_else(ApiError::unauthorized)
 }
 pub async fn register(state: &AppState, body: Credentials) -> AppResult<(String, User)> {
-    if !state.config.allow_localhost && !state.mail.available() {
+    if !state.config.allow_localhost && !state.mail_service().available() {
         return Err(ApiError {
             status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
             message: "Account email delivery is not configured",

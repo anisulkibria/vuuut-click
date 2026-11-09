@@ -454,7 +454,7 @@ pub async fn request_reset(
     Form(input): Form<crate::mail::ResetRequest>,
 ) -> AppResult<Html<String>> {
     auth::csrf(&s, &h)?;
-    if !s.mail.available() {
+    if !s.mail_service().available() {
         return Err(ApiError {
             status: StatusCode::SERVICE_UNAVAILABLE,
             message: "Email delivery is not configured. Contact the operator.",
@@ -487,7 +487,7 @@ pub async fn request_reset(
     Ok(page(
         &h,
         "Check your next step",
-        &format!("<p>{}</p>", esc(s.mail.notice())),
+        &format!("<p>{}</p>", esc(s.mail_service().notice())),
     ))
 }
 pub async fn reset_page(h: HeaderMap) -> Html<String> {

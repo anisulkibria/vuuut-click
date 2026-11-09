@@ -757,7 +757,7 @@ async fn apply_action(
         "verify_email" => {
             let user = auth::user(&s, &h).await?;
             crate::mail::request_token(&s, &user.email, "verify").await?;
-            ("account", None, s.mail.notice())
+            ("account", None, s.mail_service().notice())
         }
         "other_sessions" => {
             manage::other_sessions(&s, &h).await?;

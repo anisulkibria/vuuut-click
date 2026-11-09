@@ -1,0 +1,17 @@
+{
+  "clickhouse": {
+    "version": "25.8.4.13",
+    "tag": "v25.8.4.13-lts",
+    "assets": {
+      "clickhouse-macos": {
+        "url": "https://github.com/ClickHouse/ClickHouse/releases/download/v25.8.4.13-lts/clickhouse-macos",
+        "sha256": "bfa6e1854529067f2b71d736be786549f6a0fb4faacdc2343e3ae5c6a2a702ee"
+      },
+      "clickhouse-macos-aarch64": {
+        "url": "https://github.com/ClickHouse/ClickHouse/releases/download/v25.8.4.13-lts/clickhouse-macos-aarch64",
+        "sha256": "f16f649603df2d9f704bff5837c2cbac6458e63ca7be8279deec5e121fc089e1"
+      }
+    }
+  },
+  "postgres_major": 17
+}

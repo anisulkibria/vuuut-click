@@ -281,6 +281,9 @@ impl GeoIp {
             })
             .unwrap_or_else(|| "ZZ".to_owned())
     }
+    pub fn database_type(&self) -> Option<&str> {
+        self.0.as_ref().map(|r| r.metadata().database_type.as_str())
+    }
     pub fn available(&self) -> bool {
         self.0.is_some()
     }

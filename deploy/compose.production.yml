@@ -14,7 +14,10 @@ services:
       CLICKHOUSE_USER: click
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DATABASE: click
-      GEOIP_PATH: /geoip/GeoLite2-Country.mmdb
+      # Optional existing MMDB; use Owner → Connections for managed downloads.
+      GEOIP_PATH: ${GEOIP_PATH:-}
+      CONNECTIONS_DATA_DIR: /connections
+      CONNECTIONS_KEY: ${CONNECTIONS_KEY:-}
       RUST_LOG: click_server=info,tower_http=info
       DISTRIBUTED_LIMITS: "true"
       ABUSE_HASH_KEY: ${ABUSE_HASH_KEY:?Set a shared random 32-byte hex key}
@@ -32,7 +35,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Set to the actual Caddy network when enabling forwarding; never use 0.0.0.0/0.
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:?Set only the trusted Caddy network CIDR}
-    volumes: ["../data/geoip:/geoip:ro"]
+    volumes: ["../data/geoip:/geoip:ro", "../data/connections:/connections"]
     depends_on:
       postgres: {condition: service_healthy}
       clickhouse: {condition: service_healthy}

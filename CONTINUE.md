@@ -1,6 +1,6 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–6 are implemented in the authorized local scope. Priority 6 release packages/contracts/runbooks and local verification are complete; remote final-revision CI, registry publication and production acceptance remain external gates. The user handles commits/pushes. Public-domain work is deferred and no Hostinger site is authorized. Main remains on http://localhost:8082 with real TEST Stripe/scoped SMTP and Priority 5 operations. No commit or push.
+Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–6 are implemented in the authorized local scope. Priority 6 release packages/contracts/runbooks and local verification are complete; remote final-revision CI, registry publication and production acceptance remain external gates. The user handles commits/pushes. Public-domain work is deferred and no Hostinger site is authorized. Main remains on http://localhost:8082 with real TEST Stripe/scoped SMTP and Priority 5 operations. Local databases now run natively; see the final native macOS checkpoint. No commit or push.
 
 ## What the user is building
 
@@ -34,7 +34,7 @@ Accepted decisions and follow-up requirements:
 
 **Demo**: CLI `seed-demo <registered-customer-email>` creates/refreshes only a marked separate demo website, 30 days of varied traffic, sources/campaigns/countries/devices, custom events, four goals, a funnel, net revenue/refunds and five Web Vitals. No collector or metering for demo. Default first site on the dashboard; banner clearly says Demo data.
 
-**Developer assets**: Rust `click-sdk`, server-side TypeScript `tracker/src/api.ts`, checked-in bundles in `tracker/dist`, OpenAPI, deployment templates, CI, architecture/license/security docs, real-stack and browser tests. `run.sh` now builds and replaces this project's managed process while retaining volumes.
+**Developer assets**: Rust `click-sdk`, server-side TypeScript `tracker/src/api.ts`, checked-in bundles in `tracker/dist`, OpenAPI, deployment templates, CI, architecture/license/security docs, real-stack and browser tests. `run.sh` now manages detached native app/database services and installs builds outside the cache; see docs/NATIVE_LOCAL.md.
 
 ## Current local access and state
 
@@ -60,22 +60,23 @@ Original machine project: `/Users/anisulkibria/Documents/Rust/Ghost/Vuuut-click`
   blocks creating a real website from that account.
 - Passwords are unchanged and stored only in ignored **`.local/development-accounts.json`**, mode 0600. Never put those passwords in tracked docs, commits, output or production defaults.
 - Existing demo website: `Vuuut Journal · Demo`, id `2220b39d-ac4c-4830-9ed4-c242718129c0`. Existing real website stays separate.
-- Local private `.env`; Docker PostgreSQL on 55432, ClickHouse HTTP on 58123. Persistent named Docker volumes. Health `/healthz`, dependencies `/readyz`.
+- Local private `.env`; native PostgreSQL 17 on 55432 and ClickHouse HTTP on 58123. Project-owned durable data in `.local/native`; original stopped Docker volumes retained as rollback evidence. Health `/healthz`, dependencies `/readyz`.
 - Main server log/PID: `.local/server.log`, `.local/server.pid`. Temporary staging 8083 was stopped; the verified build is running on 8082. Verify readiness; do not assume a process survived a device restart.
-- Migrations 0001–0014 PostgreSQL and 0001–0003 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
+- Migrations 0001–0015 PostgreSQL and 0001–0003 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
 
 ## Clone and run on another device
 
-Git transfers source/docs, **not local databases, users/passwords, sessions, demo rows, `.env`, mail or licensed GeoIP data**. To retain the exact existing accounts/data, separately transfer encrypted consistent backups of both databases and private configuration through your own secure channel. Automated encrypted cross-store backup/restore remains unfinished; never push Docker volumes or `.env` to Git.
+Git transfers source/docs, **not local databases, users/passwords, sessions, demo rows, `.env`, mail or licensed GeoIP data**. To retain the exact existing accounts/data, separately transfer encrypted consistent backups of both databases and private configuration through your own secure channel. Use the encrypted cross-store backup/restore workflow in docs/OPERATIONS.md; never push database directories or `.env` to Git.
 
 For a clean development install:
 
 ```sh
-# Inside the cloned Vuuut-click repository; install Rust stable and Docker first.
-./run.sh
+# Inside the cloned Vuuut-click repository on macOS; install Rust, Python 3.11+ and Homebrew.
+./run.sh setup
+./run.sh start
 ```
 
-This generates private local secrets, starts databases, migrates, builds Rust, and serves 8082. Node is needed only to change/build the tracker or run browser tests; committed bundles let Rust start without it.
+This generates private local secrets, installs native database prerequisites, starts project-owned databases, migrates, builds Rust, and serves 8082 without Docker. Existing Docker installations use the explicit verified `./run.sh migrate-docker` first; do not initialize replacement data over them. Node is needed only to change/build the tracker or run browser tests; committed bundles let Rust start without it.
 
 1. Register a customer at `/signup`; add a localhost website for actual tracker testing.
 2. In a second terminal, create labeled sample data for your registered customer:
@@ -91,7 +92,7 @@ set +a
 4. Save your new local credentials privately. Configure your own licensed `GEOIP_PATH` for real country lookups; development otherwise shows Unknown. Never enable the test MMDB as production data.
 5. Visit sidebar **Advanced analytics** and **Workspace & settings**. A viewer can explore reports but needs its own workspace/appropriate role to manage settings.
 
-Edit Rust, then rerun `./run.sh` to rebuild/restart this project's managed app. Ctrl+C stops the foreground app; `./run.sh --stop` stops managed app/databases and preserves volumes. Optional already-built local restart helper: `python3 scripts/restart-local.py` after sourcing `.env`; it uses `lsof` and checks the listener before replacing it.
+Edit Rust, then run `./run.sh restart` to build and restart the detached app/databases. `./run.sh stop` (or legacy `--stop`) gracefully stops only this project's managed services and preserves data. Use `status`, `doctor`, `log -f`, `build`, `rebuild`, `db-start`, `db-stop` and `help` for local operations. See docs/NATIVE_LOCAL.md; runtime and database directories are not caches.
 
 Before initializing Git, work in **Vuuut-click**, not the parent Ghost directory containing sibling projects. `.gitignore` excludes `.env`, `.local`, `target`, `node_modules`, test artifacts and `data`. Review staged files with `git status`/`git diff --cached` before pushing. Include Cargo.lock, package-lock.json, tracker/dist, docs and test fixtures with their license notices. The user will choose the remote and initialize/push Git; no remote publication was performed by the agent.
 
@@ -220,7 +221,7 @@ Earlier in the same session, before resuming: sign-in path aliases (above) in
 `crates/click-server/src/lib.rs`, covered by `real_stack.rs` which also asserts
 the alias does not shadow a real `/owner/{section}`.
 
-Reproduce checks (with Docker services running):
+Reproduce checks (with databases running; use `./run.sh start` for native local services):
 
 ```sh
 cargo fmt --all --check
@@ -279,7 +280,7 @@ Further owner typography adjustment: the user requested another small reduction.
 
 ## Customer sign-in outage recovered — 2026-11-08
 
-The user reported `/signin` failing. The page returned 200, but `/readyz` returned 500 and logs showed PostgreSQL pool timeouts. Docker Desktop was stopped, leaving both development databases unavailable. Started Docker Desktop and brought up the existing development Compose stack without removing volumes. Both containers are healthy, readiness is 200, and the database retains all 57 accounts including the original customer/owner. Verified the actual customer form in Chromium with an existing browser-test customer: sign-in, redirect, authenticated `/v1/me` and logout passed. No account/password changes or authentication-code changes were needed. Keep Docker running; `./run.sh` starts the complete stack if it has stopped.
+The user reported `/signin` failing. The page returned 200, but `/readyz` returned 500 and logs showed PostgreSQL pool timeouts. Docker Desktop was stopped, leaving both development databases unavailable. Started Docker Desktop and brought up the existing development Compose stack without removing volumes. Both containers are healthy, readiness is 200, and the database retains all 57 accounts including the original customer/owner. Verified the actual customer form in Chromium with an existing browser-test customer: sign-in, redirect, authenticated `/v1/me` and logout passed. No account/password changes or authentication-code changes were needed. This was the historical Docker setup; the later native macOS checkpoint supersedes it. Use `./run.sh start` for local services now.
 
 ## Source map
 
@@ -1008,3 +1009,133 @@ ownership/configuration have not been supplied. The user must commit/push, obtai
 green remote CI, configure registry trust/secrets and dispatch the tagged release.
 Do not call public publication or production acceptance complete. External P5
 public-domain, GeoIP, off-machine escrow/soak/independent-review gates still apply.
+
+## Native CMS analytics, connections and cache cleanup — 2026-11-10
+
+Resumed at the user's request to finish Click-backed CMS analytics, automatic Pro
+connections and easy external provider setup. No commit, push or public deployment.
+
+- Connected CMS `/ghost/analytics/` now uses Click for traffic, comparisons,
+  content/engagement, returning visitors, newsletter editions, campaign returns
+  and performance. Growth/editorial email facts remain local. Post analytics
+  displays scoped traffic, daily views, sources, countries and campaigns inline.
+  Connected traffic APIs use exact Click date projections and canonical slash
+  aliases, rather than silently reading historical local page_views.
+- Background CMS setup registers pinned signing keys before any Admin visit.
+  Pro's existing revisioned reconciliation still provisions active tenants
+  automatically after one operator platform setup. The legacy server collector
+  is disabled under native/managed policy so it cannot bypass browser consent.
+  Staff report requests run at most three remote requests concurrently.
+- Owner console **Connections**, `/owner/connections`, manages MaxMind, SMTP,
+  Stripe, OTLP and hosting platform registration. Credential generation and a
+  copyable private Pro configuration are provided. PostgreSQL migration0015
+  stores service-bound AES-GCM ciphertext with global monotonic revisions.
+  SMTP/Stripe/GeoIP snapshots reload live, across processes within five seconds;
+  exporter changes require restart. Secret fields never return saved values.
+- MaxMind downloads use the fixed official licensed Country archive, bounded
+  HTTPS redirects/bytes/time, MMDB validation and atomic replacement. Failed
+  downloads retain the prior reader. Workers check hourly for a daily update.
+  Production owner setup can start without GeoIP, while readiness/browser
+  collection remain503 until configured. Licensed real downloads still need
+  operator credentials; none were invented or redistributed.
+- Encrypted backup bundles include the matching connection encryption key and
+  managed MMDB, with integrity verification and safe restore member checks.
+  Production mount/key/replica/recovery instructions: docs/CONNECTIONS.md.
+
+Verification: **55 distinct Click backend checks** passed (54-test full workspace
+run with all ignored database tests included, then both connection scenarios
+including the added production-readiness/bootstrap case); **3/3 native bridge
+scenarios**, including real CMS/platform adapters, Ghost-compatible stats,
+slash-alias unique counts, consent, rotation and actual Chrome browser checks;
+**11/11 dashboard Playwright scenarios**, including Connections credential
+masking/generation and mobile layout; strict Clippy/all-targets, formatting,
+tracker TypeScript/build, JavaScript syntax, OpenAPI exact85-operation coverage,
+and **4 backup guard tests** pass. An initial browser run hit ClickHouse's
+process memory limit after the database suite; a graceful ClickHouse restart
+preserved volumes and the unchanged entire browser suite passed in53.0s.
+
+At the user's request, cleared old Rust build trees, writable npm caches, package
+manager/Python/Composer/node-gyp/tool caches and Docker build cache. Disk free
+space increased from1.8GiB to about29GiB after rebuilding. A small root-owned
+npm cache remains because noninteractive sudo required an administrator password.
+A shared `.dev-build` with debug info/incremental compilation disabled replaces
+separate large build trees for this work. Source, private configuration, licensed
+files, local accounts, mail, databases and backup evidence were preserved.
+
+Cleanup removed the CMS executable that idle Pro tenants depended on. Restored
+`hello.localhost:8080`, verified its homepage200 and Admin sign-in200 in a real
+browser, and installed runtime copies outside build caches:
+`Vuuut-pro/run/bin/ghost`, `Vuuut-pro/run/bin/ghost-pro`, and
+`Vuuut-click/.local/bin/click-server`. Compatibility symlinks remain under the
+old target paths. Private Pro config now uses `paths.ghostBinary=bin/ghost`, so
+waking tenants no longer depends on the CMS build directory. Pro8080, standalone
+CMS1971 and Click8082 run the final binaries. Temporary browser8083 and its
+isolated PostgreSQL/ClickHouse stores were stopped/dropped after verification.
+The CMS launcher now starts a detached process session like Pro's launcher,
+fixing a standalone process that otherwise died when its automation group ended.
+
+Runtime copies are installed artifacts, not caches. Preserve their directories,
+`CONNECTIONS_DATA_DIR` and encryption key when cleaning/recovering the device.
+The local runtime copies should be atomically updated after future builds.
+Public deployment, real licensed MaxMind acceptance and earlier external release
+gates remain operator work; no universal Tinybird wire compatibility or
+production-readiness claim is made.
+
+
+## Native macOS databases and lifecycle commands — 2026-11-10
+
+User requested native local databases without Docker and a full `run.sh` command
+interface. Implemented `scripts/local.py`, pinned/checksummed official macOS
+ClickHouse installers and matching Homebrew PostgreSQL 17 tools. `run.sh` now
+supports detached `start` (default), `stop`, `restart`, `status`, `setup`, `doctor`,
+`build`, `rebuild`, `test`, `log`/`logs` with service selection/follow, `db-start`,
+`db-stop`, and explicit one-time `migrate-docker`; legacy `--stop` remains valid.
+`LOCAL_DB_MODE=external` leaves database lifecycle unmanaged. Normal commands
+never invoke Docker. Build/install preserves runtime copies outside caches;
+restart builds before stopping the live services. Private control locking,
+listener/PID ownership checks and graceful shutdown preserve unrelated services
+and durable data. Native setup persists matching PostgreSQL backup client paths.
+
+Migrated the active installation from Docker to project-owned native services:
+PostgreSQL 17 on55432, ClickHouse25.8.4.13 HTTP58123/TCP59000, app8082. Existing
+credentials, accounts, provider encryption key/licensed files, usage, pending
+outboxes and native CMS/Pro mappings are retained. Migration compared counts and
+sorted row fingerprints for all37 PostgreSQL tables,595,745 distinct immutable
+analytics rows and20,960 logical hourly aggregates before cutover. The verified
+private snapshot and receipt remain in `.local/native-migration` and
+`.local/native/migration-complete.json`. Original Docker volumes remain intact;
+source database/monitoring containers and Docker Desktop's engine are stopped.
+Never start those source containers on the native ports. No Docker data was
+pruned as part of this conversion.
+
+All active database data is in `.local/native`, not a cache. Keep it with `.env`,
+`.local/bin`, `.local/connections` and the matching encrypted backups during
+cleanup/device moves. Failed migration snapshots/targets also remain private;
+do not mistake them for the live native directory. An interrupted target stop
+refuses to move live database paths. Native ClickHouse uses bounded caches,
+small background pools and1.5GiB/256MiB server/query limits. A restart following
+the full database suite exposed global-worker starvation while loading dropped
+test metadata; increasing global headroom and limiting loader pools fixed it.
+The stalled startup was recovered without changing data, and subsequent graceful
+stop/restart after both integration/browser/operations suites passed. The pin
+matches the source engine; native macOS support and production release limits
+are documented in docs/NATIVE_LOCAL.md.
+
+Verification with the Docker engine stopped: **55/55 backend checks** (all ignored
+real-store tests included), **3/3 native CMS/Pro bridge scenarios** including real
+Chrome, **11/11 dashboard browser scenarios** in46.5s, **21/21 Python guard checks**
+including9 native lifecycle/migration guards, formatting, shell/Python syntax,
+85-operation exact contract coverage and28 authenticated live response checks.
+A bounded native operational run (`--duration 5 --volume-rows 0`) verified encrypted
+snapshots and isolated restore/replay, matching-major clients, wrong-key/pack
+corruption rejection, maintenance admission, exact metering/delivery and actual
+OTLP privacy. It is compatibility/recovery evidence, not a capacity qualification.
+The previous larger operational evidence was retained separately. Current private
+evidence: `.local/native-*-tests.log` and `.local/ops/validation-evidence.json`.
+
+Actual setup/start/repeated-start/stop/restart/status/doctor and legacy stop were
+exercised; the final setup/restart/start/doctor passed with a PATH containing no
+Docker executable. Stop released the owned service ports. Main Click readyz,
+hello.localhost:8080 homepage/Admin and standalone1971 all returned200. No commit,
+push, public deployment, licensed-provider acceptance or production release
+claim. Documentation: docs/NATIVE_LOCAL.md and docs/OPERATIONS.md.

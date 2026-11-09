@@ -214,3 +214,28 @@ attributes enter the theme. Automatic CMS payments still do not stitch members
 to browser sessions; campaign attribution/ROI needs explicit consented backend
 association plus recorded cost coverage. Upgrade Click before the matching CMS/
 hosting binaries so the additive report and fact contracts are available.
+
+## Native CMS analytics and provider connections (2026-11-10)
+
+Click is now the traffic source on the connected CMS's normal Analytics screen,
+not only its advanced connector page. The site and host analytics switches,
+consent, DNT/GPC and scoped credentials still apply. The legacy server collector
+is disabled while native collection is configured, so it cannot collect ahead
+of browser consent or create a second traffic history. An outage returns a
+visible reporting error; it does not substitute local page-view rows. Member,
+attributed-growth and editorial email facts remain local authoritative records.
+
+The existing `native-report` GET also accepts optional inclusive UTC
+`date_from`/`date_to` bounds (at most five years, ending by today), and `metric`
+`content`, `sources`, `countries`, `campaigns` or `daily`. Its optional `stats`
+array contains `{label,views,visitors}`. A supplied post path scopes every
+projection, grouping slash aliases before unique counts. The projection is
+bounded to 10000 rows and normal report memory/time/concurrency limits. CMS
+stats endpoints use the same private exchange; tokens never enter browser HTML.
+
+Hosted CMS workers register their pinned signing key during background setup,
+including before the first Admin visit. Platform registration and copyable
+private hosting configuration are now available in **Owner → Connections**.
+Every active tenant still uses only its own website credential. Custom-domain
+verification, lifecycle revisions, suspension/deletion and restore isolation
+remain unchanged. See [provider setup and encrypted recovery](CONNECTIONS.md).

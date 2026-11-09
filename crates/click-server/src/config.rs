@@ -69,9 +69,7 @@ impl Config {
         {
             bail!("Production requires exact trusted reverse-proxy CIDRs, never /0");
         }
-        if config.require_geoip && config.geoip_path.is_none() {
-            bail!("GEOIP_PATH is required for this environment");
-        }
+
         Ok(config)
     }
 }

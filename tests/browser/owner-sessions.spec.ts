@@ -30,13 +30,22 @@ test('owner and user log in and out independently in the same browser',async({pa
   ['Websites','websites','Every connected corner of the web.'],
   ['Subscriptions','subscriptions','Plans and usage, in one place.'],
   ['Event delivery','delivery','Keep the insights flowing.'],
-  ['Audit log','audit','A record of what changed.']
+  ['Audit log','audit','A record of what changed.'],
+  ['Connections','connections','Connect your services.']
  ]) {
   await sidebar.getByRole('link',{name:label,exact:true}).click();
   await expect(ownerTab).toHaveURL(new RegExp('/owner/'+path+'$'));
   await expect(ownerTab.getByRole('heading',{name:heading,exact:true})).toBeVisible();
   await expect(sidebar.getByRole('link',{name:label,exact:true})).toHaveAttribute('aria-current','page');
  }
+ await expect(ownerTab.locator('input[name="MAXMIND_LICENSE_KEY"]')).toHaveValue('');
+ await expect(ownerTab.locator('input[name="SMTP_PASSWORD"]')).toHaveValue('');
+ await ownerTab.getByRole('button',{name:'Generate private credential',exact:true}).click();
+ await expect(ownerTab.locator('input[name="platform_key"]')).toHaveValue(/^[0-9a-f]{64}$/);
+ await ownerTab.setViewportSize({width:390,height:844});
+ expect(await ownerTab.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await ownerTab.screenshot({path:'test-results/owner-connections-mobile.png',fullPage:true});
+ await ownerTab.setViewportSize({width:1440,height:1000});
  await ownerTab.getByTitle('Dark theme',{exact:true}).click();
  await expect(ownerTab).toHaveURL(/\/owner\/dashboard$/);await expect(ownerTab.locator('html')).toHaveClass('dark');
  await ownerTab.screenshot({path:'test-results/owner-sidebar-dark.png',fullPage:true});

@@ -34,6 +34,9 @@ async-trait.workspace = true
 lettre.workspace = true
 clickhouse.workspace = true
 jsonwebtoken.workspace = true
+ring = "0.17"
+flate2 = "1"
+tar = "0.4"
 
 opentelemetry = { version = "0.33.1", default-features = false, features = ["trace"] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace"] }

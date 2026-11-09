@@ -190,6 +190,13 @@ async fn actual_platform_cms_and_click_adapters_work_together() {
         .is_none());
 
     assert_eq!(ghost_api::click::drain_once(&state).await.unwrap(), 0);
+    assert!(sqlx::query_scalar::<_, bool>(
+        "SELECT connected FROM native_connections WHERE website_id=$1"
+    )
+    .bind(website)
+    .fetch_one(&h.store.pg)
+    .await
+    .unwrap());
     member(&state.db, "member-1").await;
     ghost_api::member_events::record_payment_once(
         &state,
@@ -260,6 +267,58 @@ async fn actual_platform_cms_and_click_adapters_work_together() {
     assert!(!html.contains(c["integrationKey"].as_str().unwrap()));
     assert!(!html.contains(&platform_key));
     sqlx::query("INSERT INTO posts(id,uuid,title,slug,status,type,created_at) VALUES('native-post','native-post','Native post','native-post','published','post',?)").bind(ghost_core::dates::now_db()).execute(&state.db).await.unwrap();
+    let session = Uuid::new_v4();
+    let events=["/native-post/","/native-post"].iter().map(|path|json!({"event_id":Uuid::new_v4(),"session_id":session,"name":"pageview","url":format!("http://bridge.localhost:8080{path}")})).collect::<Vec<_>>();
+    let response = h
+        .client()
+        .post(format!(
+            "{}/v1/collect/{}",
+            h.base,
+            c["collectionId"].as_str().unwrap()
+        ))
+        .header("Origin", "http://bridge.localhost:8080")
+        .json(&json!({"events":events}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    h.store.drain_once().await.unwrap();
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let projected = ghost_api::click::cms_stats(
+        &state,
+        "native-staff",
+        "Owner",
+        "content",
+        &today,
+        &today,
+        Some("/native-post/"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(projected["page"]["pageviews"], 2);
+    assert_eq!(projected["stats"][0]["views"], 2);
+    assert_eq!(projected["stats"][0]["visitors"], 1);
+    assert_eq!(projected["stats"][0]["label"], "/native-post/");
+    let response = ghost_api::stats::admin_router()
+        .with_state(state.clone())
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/stats/top-content?days=30")
+                .header("cookie", &cookie)
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let payload: Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), 10_000_000)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(payload["stats"][0]["views"], 2);
+    assert_eq!(payload["stats"][0]["visitors"], 1);
     let post_app = axum::Router::new()
         .nest("/ghost", ghost_admin_ui::admin_ui_router(state.clone()))
         .with_state(state.clone());
@@ -281,7 +340,43 @@ async fn actual_platform_cms_and_click_adapters_work_together() {
             .to_vec(),
     )
     .unwrap();
-    assert!(post_html.contains("Vuuut Click post report"));
+    assert!(post_html.contains("Traffic comes from Vuuut Click"));
+    assert!(
+        post_html.contains("Pageviews per day")
+            && post_html.contains("Locations")
+            && post_html.contains("Campaigns")
+    );
+    assert!(
+        !post_html.contains("Click could not load the CMS report"),
+        "{post_html}"
+    );
+    let response = axum::Router::new()
+        .nest("/ghost", ghost_admin_ui::admin_ui_router(state.clone()))
+        .with_state(state.clone())
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/ghost/analytics/")
+                .header("cookie", &cookie)
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    assert_eq!(response.headers()["cache-control"], "private, no-store");
+    let home = String::from_utf8(
+        axum::body::to_bytes(response.into_body(), 10_000_000)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(
+        home.contains("Vuuut Click")
+            && home.contains("Pageviews per day")
+            && home.contains("USD 15.00")
+    );
+    assert!(!home.contains(c["integrationKey"].as_str().unwrap()));
 
     let front = ghost_front::site_router(state.clone());
     let response = front
@@ -306,6 +401,15 @@ async fn actual_platform_cms_and_click_adapters_work_together() {
         "tracker absent from theme"
     );
     assert!(!html.contains(c["integrationKey"].as_str().unwrap()));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM page_views")
+            .fetch_one(&state.db)
+            .await
+            .unwrap(),
+        0,
+        "Native collection must not run the legacy collector before browser consent"
+    );
     // A platform outage is persisted and leaves the last working tenant config.
     let mut broken = (*config).clone();
     broken.click["baseUrl"] = json!("http://127.0.0.1:1");

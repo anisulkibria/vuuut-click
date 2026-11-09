@@ -4638,6 +4638,39 @@
               "maxLength": 1024
             },
             "description": "Local post path without query, fragment, controls or protocol-relative prefix."
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "metric",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "content",
+                "sources",
+                "countries",
+                "campaigns",
+                "daily"
+              ]
+            }
           }
         ],
         "responses": {
@@ -7109,6 +7142,31 @@
                 "type": "null"
               }
             ]
+          },
+          "stats": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "label",
+                "views",
+                "visitors"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "views": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "visitors": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
           }
         },
         "required": [

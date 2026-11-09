@@ -483,11 +483,8 @@ async fn enforce_retention_work(store: &Store) -> anyhow::Result<bool> {
     sweep.commit().await?;
     Ok(true)
 }
-pub async fn worker(
-    store: Store,
-    mail: std::sync::Arc<crate::mail::Mailer>,
-    mut shutdown: tokio::sync::watch::Receiver<bool>,
-) {
+pub async fn worker(state: AppState, mut shutdown: tokio::sync::watch::Receiver<bool>) {
+    let store = state.store.clone();
     let mut ticks = 0u64;
     loop {
         if *shutdown.borrow() {
@@ -503,7 +500,7 @@ pub async fn worker(
         for result in [
             crate::commercial::run(&store, "deletion", process_deletion(&store)).await,
             crate::commercial::run(&store, "exports", process_export(&store)).await,
-            crate::commercial::run(&store, "mail", mail.drain_once(&store)).await,
+            crate::commercial::run(&store, "mail", state.mail_service().drain_once(&store)).await,
         ] {
             if let Err(error) = result {
                 tracing::error!(%error,"durable control job retained for retry");

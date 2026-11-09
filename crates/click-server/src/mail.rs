@@ -17,6 +17,17 @@ use lettre::{
 use serde::Deserialize;
 use uuid::Uuid;
 
+fn config_var(
+    values: &std::collections::HashMap<String, String>,
+    key: &str,
+) -> Result<String, std::env::VarError> {
+    values
+        .get(key)
+        .filter(|v| !v.is_empty())
+        .cloned()
+        .ok_or(std::env::VarError::NotPresent)
+}
+
 pub struct Mailer {
     mode: Mode,
 }
@@ -35,6 +46,16 @@ impl Mailer {
             mode: Mode::File(directory),
         }
     }
+    pub async fn test_connection(&self) -> anyhow::Result<()> {
+        let Mode::Smtp { transport, .. } = &self.mode else {
+            anyhow::bail!("SMTP is not configured")
+        };
+        anyhow::ensure!(
+            transport.test_connection().await?,
+            "SMTP did not accept connection"
+        );
+        Ok(())
+    }
     pub async fn send_probe(&self, recipient: &str) -> anyhow::Result<()> {
         let Mode::Smtp {
             transport, from, ..
@@ -52,12 +73,18 @@ impl Mailer {
     }
 
     pub fn from_env(local: bool) -> anyhow::Result<Self> {
-        if let Ok(host) = std::env::var("SMTP_HOST") {
+        Self::from_config(local, &std::env::vars().collect())
+    }
+    pub fn from_config(
+        local: bool,
+        values: &std::collections::HashMap<String, String>,
+    ) -> anyhow::Result<Self> {
+        if let Ok(host) = config_var(values, "SMTP_HOST") {
             if !host.trim().is_empty() {
-                let from = std::env::var("SMTP_FROM")
+                let from = config_var(values, "SMTP_FROM")
                     .map_err(|_| anyhow::anyhow!("SMTP_FROM is required"))?
                     .parse()?;
-                let port: u16 = std::env::var("SMTP_PORT")
+                let port: u16 = config_var(values, "SMTP_PORT")
                     .unwrap_or_else(|_| "587".into())
                     .parse()?;
                 let mut builder = if port == 465 {
@@ -68,8 +95,8 @@ impl Mailer {
                 .port(port)
                 .timeout(Some(std::time::Duration::from_secs(15)));
                 match (
-                    std::env::var("SMTP_USERNAME").ok(),
-                    std::env::var("SMTP_PASSWORD").ok(),
+                    config_var(values, "SMTP_USERNAME").ok(),
+                    config_var(values, "SMTP_PASSWORD").ok(),
                 ) {
                     (Some(user), Some(pass)) => {
                         builder = builder.credentials(Credentials::new(user, pass))
@@ -82,7 +109,7 @@ impl Mailer {
                         transport: builder.build(),
                         from,
                         allowed_recipient: if local {
-                            let recipient=std::env::var("COMMERCIAL_TEST_EMAIL").map_err(|_|anyhow::anyhow!("Development SMTP requires COMMERCIAL_TEST_EMAIL to limit delivery to your test inbox"))?;
+                            let recipient=config_var(values, "COMMERCIAL_TEST_EMAIL").map_err(|_|anyhow::anyhow!("Development SMTP requires COMMERCIAL_TEST_EMAIL to limit delivery to your test inbox"))?;
                             let _: lettre::Address = recipient.parse()?;
                             Some(recipient)
                         } else {
@@ -227,7 +254,7 @@ pub async fn enqueue_account_token(
 }
 
 pub async fn request_token(s: &AppState, email: &str, purpose: &str) -> AppResult<()> {
-    if !s.mail.available() {
+    if !s.mail_service().available() {
         return Err(ApiError {
             status: StatusCode::SERVICE_UNAVAILABLE,
             message: "Email delivery is not configured",
@@ -423,7 +450,7 @@ pub async fn request_form(
         "Check your next step.",
         &format!(
             "<p>{}</p><p><a href=\"/signin\">Return to sign in</a></p>",
-            esc(s.mail.notice())
+            esc(s.mail_service().notice())
         ),
     ))
 }

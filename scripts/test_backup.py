@@ -28,4 +28,12 @@ class RecoverySafetyTests(unittest.TestCase):
             manifest={'format':1,'geoip_included':False,'sha256':{name:backup.file_hash(folder/name) for name in files}};(folder/'manifest.json').write_text(json.dumps(manifest));backup.verify_files(folder)
             (folder/'configuration.env').write_bytes(b'changed')
             with self.assertRaises(RuntimeError):backup.verify_files(folder)
+    def test_dashboard_key_is_required_and_integrity_checked(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);files=['postgres.dump','events.native','pageviews_hourly.native','configuration.env','connections.key']
+            for name in files:(folder/name).write_bytes(b'fixture')
+            manifest={'format':1,'geoip_included':False,'connections_key_included':True,'sha256':{name:backup.file_hash(folder/name) for name in files}}
+            (folder/'manifest.json').write_text(json.dumps(manifest));backup.verify_files(folder)
+            (folder/'connections.key').write_bytes(b'wrong key')
+            with self.assertRaises(RuntimeError):backup.verify_files(folder)
 if __name__=='__main__':unittest.main()

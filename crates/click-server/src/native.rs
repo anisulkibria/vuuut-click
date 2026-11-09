@@ -576,6 +576,9 @@ pub async fn authorized_site(s: &AppState, token: &str, id: Uuid) -> AppResult<O
 
 #[derive(Deserialize)]
 struct ReportQuery {
+    date_from: Option<String>,
+    date_to: Option<String>,
+    metric: Option<String>,
     days: Option<u32>,
     path: Option<String>,
 }
@@ -583,6 +586,14 @@ struct ReportQuery {
 struct NativeReport {
     activity: Vec<click_store::Breakdown>,
     page: Option<PageReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stats: Option<Vec<CmsStat>>,
+}
+#[derive(Serialize, clickhouse::Row, Deserialize)]
+struct CmsStat {
+    label: String,
+    views: u64,
+    visitors: u64,
 }
 #[derive(Serialize)]
 struct PageReport {
@@ -600,7 +611,7 @@ async fn report(
     Query(q): Query<ReportQuery>,
 ) -> AppResult<Json<NativeReport>> {
     let (site, _, _permit) = auth::authorize_report(&s, &h, id).await?;
-    let (start, end) = crate::api::range(&crate::api::Period { days: q.days })?;
+    let (start, end) = cms_range(&q)?;
     if q.path.as_ref().is_some_and(|p| {
         !p.starts_with('/')
             || p.starts_with("//")
@@ -614,6 +625,45 @@ async fn report(
     }
     let activity=s.store.ch.query("SELECT name AS label,uniqExact(event_id) AS count FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND name IN ('server.member_signup','server.subscription_started','server.subscription_cancelled','server.newsletter_sent','server.newsletter_open','server.newsletter_click','server.payment','server.refund') GROUP BY name ORDER BY name")
         .bind(site.organization_id.to_string()).bind(id.to_string()).bind(start).bind(end).fetch_all::<click_store::Breakdown>().await.map_err(ApiError::internal)?;
+    let stats = if let Some(metric) = q.metric.as_deref() {
+        let column = match metric {
+            "content" => "if(path='/', '/', concat(replaceRegexpOne(path,'/+$',''),'/'))",
+            "sources" => "if(utm_source!='',utm_source,if(referrer='','Direct',referrer))",
+            "countries" => "country",
+            "campaigns" => "utm_campaign",
+            "daily" => "toString(toDate(timestamp))",
+            _ => {
+                return Err(ApiError::bad(
+                    "Choose content, sources, countries, campaigns or daily traffic",
+                ))
+            }
+        };
+        let sql=format!("SELECT {column} AS label,uniqExact(event_id) AS views,uniqExact(visitor_id) AS visitors FROM events FINAL WHERE organization_id=? AND website_id=? AND name='pageview' AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND (?='' OR path IN (?,?)) GROUP BY label ORDER BY views DESC,label LIMIT 10001");
+        let path = q.path.as_deref().unwrap_or("");
+        let bare = path.trim_end_matches('/');
+        let rows = s
+            .store
+            .ch
+            .query(&sql)
+            .bind(site.organization_id.to_string())
+            .bind(id.to_string())
+            .bind(start)
+            .bind(end)
+            .bind(path)
+            .bind(bare)
+            .bind(format!("{bare}/"))
+            .fetch_all::<CmsStat>()
+            .await
+            .map_err(ApiError::internal)?;
+        if rows.len() > 10000 {
+            return Err(ApiError::bad(
+                "CMS report exceeds 10000 rows; choose a shorter period",
+            ));
+        }
+        Some(rows)
+    } else {
+        None
+    };
     let page = if let Some(path) = q.path {
         let bare = path.trim_end_matches('/');
         let totals=s.store.ch.query("SELECT uniqExact(event_id) AS pageviews,uniqExact(visitor_id) AS visitors,uniqExact(session_id) AS sessions FROM events FINAL WHERE organization_id=? AND website_id=? AND name='pageview' AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND path IN (?,?)")
@@ -628,5 +678,67 @@ async fn report(
     } else {
         None
     };
-    Ok(Json(NativeReport { activity, page }))
+    Ok(Json(NativeReport {
+        activity,
+        page,
+        stats,
+    }))
+}
+
+/// Ghost date_to is inclusive. Exact bounds share one clock and are capped
+/// at five years, with the normal report resource limits still enforced.
+fn cms_range(q: &ReportQuery) -> AppResult<(u32, u32)> {
+    if q.date_from.is_none() && q.date_to.is_none() {
+        return crate::api::range(&crate::api::Period { days: q.days });
+    }
+    let parse = |s: Option<&str>| {
+        s.and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+            .ok_or_else(|| ApiError::bad("Use date_from and date_to in YYYY-MM-DD form"))
+    };
+    let from = parse(q.date_from.as_deref())?;
+    let to = parse(q.date_to.as_deref())?;
+    let now = chrono::Utc::now();
+    if from > to
+        || (to - from).num_days() > 1826
+        || from < chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()
+        || to > now.date_naive()
+    {
+        return Err(ApiError::bad(
+            "Use an ordered CMS date range of at most five years ending by today",
+        ));
+    }
+    let start = from.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as u32;
+    let end = (to
+        .succ_opt()
+        .ok_or_else(|| ApiError::bad("Invalid end date"))?
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc()
+        .timestamp() as u32)
+        .min(now.timestamp() as u32 + 1);
+    Ok((start, end))
+}
+
+#[cfg(test)]
+mod cms_range_tests {
+    use super::*;
+    #[test]
+    fn cms_periods_are_inclusive_bounded_and_ordered() {
+        let mut q = ReportQuery {
+            days: None,
+            path: None,
+            metric: Some("content".into()),
+            date_from: Some("2026-01-01".into()),
+            date_to: Some("2026-01-01".into()),
+        };
+        let (start, end) = cms_range(&q).unwrap();
+        assert_eq!(end - start, 86400);
+        q.date_to = Some("2025-12-31".into());
+        assert!(cms_range(&q).is_err());
+        q.date_from = Some("2000-01-01".into());
+        q.date_to = Some("2026-01-01".into());
+        assert!(cms_range(&q).is_err());
+        q.date_from = None;
+        assert!(cms_range(&q).is_err());
+    }
 }

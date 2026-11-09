@@ -70,20 +70,20 @@ pub async fn status(s: &AppState) -> AppResult<Status> {
     Ok(Status {
         observed_at: Utc::now(),
         billing_provider: s
-            .billing
+            .billing_service()
             .provider
             .as_ref()
             .map(|p| p.name())
             .unwrap_or("disabled")
             .into(),
         billing_mode: s
-            .billing
+            .billing_service()
             .provider
             .as_ref()
             .map(|p| p.mode())
             .unwrap_or("disabled")
             .into(),
-        mail_mode: s.mail.mode().into(),
+        mail_mode: s.mail_service().mode().into(),
         checks,
         queues,
     })

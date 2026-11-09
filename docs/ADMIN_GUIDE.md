@@ -52,3 +52,9 @@ retries. It does not expose payment keys or private message bodies.
 Operational monitoring and backup tools are private operator functions, separate
 from owner cookies. Follow OPERATIONS.md for dependency failures, alert handling,
 credential rotation and recovery, and MIGRATIONS.md before installing upgrades.
+
+Platform owners can use **Connections** in the owner sidebar to configure
+MaxMind country enrichment, TLS SMTP, Stripe, monitoring and Vuuut Pro platform
+registration. Secret fields stay blank when editing; blank means keep the
+current value. Provider setup, live reload behavior, key preservation and backup
+recovery are explained in [External connections](CONNECTIONS.md).

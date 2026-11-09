@@ -576,7 +576,7 @@ pub async fn overview(
     }
     let geo = if site.is_demo {
         "Sample countries for demonstration"
-    } else if s.geoip.available() {
+    } else if s.geoip_service().available() {
         "Local country lookup enabled"
     } else {
         "GeoIP not configured · countries appear as Unknown"

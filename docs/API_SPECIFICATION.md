@@ -71,3 +71,10 @@ SDKs are convenience clients rather than substitutes for the complete contract.
 See [SDK/release procedures](RELEASE.md) for installation, signatures and publishing.
 Private `/internal/metrics` uses an independent operator token and is blocked by
 the public edge; its Prometheus contract is described in [operations](OPERATIONS.md).
+
+The native-report resource additionally supports CMS date projections through
+`date_from`, `date_to`, `metric` and optional `path`. Canonical content paths
+merge slash aliases before unique counts. See the OpenAPI parameter/response
+schemas and [CMS contract](GHOST_INTEGRATION.md). Owner connection forms at
+`/owner/connections` are private HTML settings routes, protected by owner sessions
+and exact-origin CSRF; they return 303 on success and never return saved secrets.

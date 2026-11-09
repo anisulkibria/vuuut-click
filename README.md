@@ -6,17 +6,35 @@ The main standalone SaaS workflows and advanced reports are implemented for loca
 
 ## Run and experience the app
 
-Requirements: Rust stable, Docker Desktop/Engine with Compose, OpenSSL. The first run downloads database images and compiles Rust.
+Requirements: Rust stable, Python 3.11+ and Homebrew on macOS. Local PostgreSQL
+and ClickHouse run natively; Docker is not required for normal local operation.
 
 ```sh
-./run.sh
+./run.sh setup
+./run.sh start
+./run.sh status
+# Later:
+./run.sh restart
+./run.sh stop
 ```
 
-The public homepage is **http://localhost:8082/** and stays accessible for signed-in users and owners. It links to user login and workspace signup.
+Open **http://localhost:8082/** for the homepage, **/signup** to register, or
+**/signin** for customer login. Add a website and install its tracking code.
+`./run.sh` defaults to detached background startup; `./run.sh log -f` follows
+its log. The launcher manages only this project's native databases and retains
+all data on stop/restart. Ports remain app 8082, PostgreSQL 55432 and ClickHouse
+HTTP 58123, bound to loopback. Rust binaries are installed outside build caches.
 
-Open **http://localhost:8082/signup** to register. Register a workspace, add a website, and install its tracking code. To try locally, add `http://localhost:8082` as your website origin. The **Open real tracker test page** link sends real browser events; wait a few seconds, then view your dashboard. A separate, labeled demo website provides sample data without consuming billable usage. To create it after registering, source your trusted `.env` and run `./target/debug/click-server seed-demo your-account@example.com`. Real websites continue to show only real collected events. Local visits have Unknown country; set `GEOIP_PATH` in `.env` to your licensed GeoLite2-Country.mmdb for public-IP country enrichment. Test fixtures are never enabled by run.sh.
+For an existing Docker installation, use **`./run.sh migrate-docker` once** to
+preserve accounts, credentials and analytics before switching. Source Docker
+volumes remain intact as rollback copies. Fresh installations need no Docker.
+See [native setup, command reference and data locations](docs/NATIVE_LOCAL.md).
 
-`run.sh` creates a private `.env`, starts only this app's PostgreSQL and ClickHouse containers, applies migrations, and launches Rust. Ctrl+C stops a foreground Rust process gracefully; `./run.sh --stop` stops the managed background server (when present) and databases without removing volumes. Edit Rust and rerun `./run.sh` to compile and replace this project's managed server. Ports: app 8082, PostgreSQL 55432, ClickHouse HTTP 58123; all bound to loopback. Existing Vuuut/Vuuut-pro projects are untouched.
+The tracker bundle is committed; Node is needed only to build/change the tracker
+or run browser checks. Separate labeled demo data can be created with
+`.local/bin/click-server seed-demo <registered-email>` after loading trusted
+`.env`. Real websites continue to report actual collected events. Configure
+licensed country data through **Owner → Connections → MaxMind**.
 
 Owner sign in: **http://localhost:8082/owner/signin**. User sign in: **http://localhost:8082/signin**. The portals have independent session cookies and can stay signed in with different accounts in the same browser. The owner console shows actual platform totals and customer directories, with workspace suspension/reactivation, manual allowance grants, dead-letter retry and auditing. Ownership is explicitly granted by an operator using `click-server grant-owner <existing-account-email>` after loading the trusted environment. Customer workspace owners do not automatically gain platform access.
 
@@ -53,11 +71,13 @@ The normal unit command explicitly skips the real-stack integration test. `--inc
 - [Database design and metrics](docs/DATABASE_DESIGN.md)
 - [API contracts](docs/API_SPECIFICATION.md) / [OpenAPI](docs/openapi.json)
 - [SDK packaging, signatures and release](docs/RELEASE.md)
+- [External service connections](docs/CONNECTIONS.md)
 - [Customer/platform administration](docs/ADMIN_GUIDE.md)
 - [Migrations, upgrade and rollback](docs/MIGRATIONS.md)
 - [Tracker and consent](docs/TRACKER.md)
 - [Security/privacy and release gates](docs/SECURITY.md)
 - [Commercial policies and actual provider evidence](docs/COMMERCIAL_VALIDATION.md)
+- [Native local setup and lifecycle commands](docs/NATIVE_LOCAL.md)
 - [Deployment and operations](docs/DEPLOYMENT.md)
 - [Native Vuuut/Vuuut-pro integration and setup](docs/GHOST_INTEGRATION.md)
 

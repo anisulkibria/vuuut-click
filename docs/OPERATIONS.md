@@ -57,10 +57,12 @@ password beside the repository or rely on Git/device transfer to preserve it.
 
 Snapshots coordinate all application writers/workers through PostgreSQL advisory
 lock78422990, then wait for ClickHouse writes/mutations. Private PG dump, raw and
-aggregate Native tables, configuration and configured MMDB form one hashed bundle.
+aggregate Native tables, configuration, the dashboard connection encryption key and configured/managed MMDB form one hashed bundle.
 Writers resume before encryption/upload. All replicas must run this barrier;
 operators must not perform direct SQL/schema/key changes during the snapshot.
-Use a matching-major PostgreSQL client or the owned BACKUP_PG_CONTAINER.
+Native local installs use matching PostgreSQL clients through `LOCAL_PG_BINDIR`
+(or `BACKUP_PG_BINDIR`), without Docker. Set `BACKUP_PG_CONTAINER` only for an
+explicitly container-managed backup. See [native local services](NATIVE_LOCAL.md).
 
 Restore always creates fresh `click_restore_<uuid>` stores, never replaces an
 existing database. It verifies both stores, logical counts, usage and private

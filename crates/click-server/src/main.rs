@@ -19,7 +19,6 @@ async fn main() -> anyhow::Result<()> {
         println!("Load trusted private environment for service commands. Commercial payment validation requires Stripe test keys; mail probes require COMMERCIAL_TEST_EMAIL. See docs/COMMERCIAL_VALIDATION.md.");
         return Ok(());
     }
-    let _telemetry = click_server::telemetry::initialize()?;
     let config = Config::from_env()?;
     let store = Store::connect(
         &config.database_url,
@@ -30,6 +29,18 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     store.migrate().await?;
+    let connections = std::sync::Arc::new(click_server::integrations::Connections::open()?);
+    let mut configuration_state = AppState::new(store.clone(), config.clone())?;
+    configuration_state.integrations = connections.clone();
+    // Startup-only exporter initialization. HTTP handlers never change env.
+    for (key, value) in connections
+        .telemetry_values(&configuration_state)
+        .await
+        .map_err(|e| anyhow::anyhow!(e.message))?
+    {
+        std::env::set_var(key, value);
+    }
+    let _telemetry = click_server::telemetry::initialize()?;
     let _command_guard = if matches!(mode.as_str(), "serve" | "worker") {
         None
     } else {
@@ -120,12 +131,14 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     if mode == "commercial-check" {
-        let state = AppState::new(store, config)?;
+        let mut state = AppState::new(store, config)?;
+        state.integrations = connections;
+        state.integrations.refresh(&state).await?;
         let status = click_server::commercial::status(&state)
             .await
             .map_err(|e| anyhow::anyhow!(e.message))?;
         println!("{}", serde_json::to_string_pretty(&status)?);
-        if let Some(provider) = &state.billing.provider {
+        if let Some(provider) = &state.billing_service().provider {
             anyhow::ensure!(
                 provider.mode() == "test",
                 "Commercial validation requires Stripe test mode"
@@ -217,7 +230,9 @@ async fn main() -> anyhow::Result<()> {
     if mode != "serve" && mode != "worker" {
         anyhow::bail!("Unknown command; run click-server --help");
     }
-    let state = AppState::new(store.clone(), config.clone())?;
+    let mut state = AppState::new(store.clone(), config.clone())?;
+    state.integrations = connections;
+    state.integrations.refresh(&state).await?;
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
     let run_workers = match std::env::var("RUN_WORKERS").as_deref() {
         Ok("false") => false,
@@ -237,19 +252,23 @@ async fn main() -> anyhow::Result<()> {
         }
     });
     let control_worker = tokio::spawn({
-        let store = store.clone();
-        let mail = state.mail.clone();
+        let state = state.clone();
         async move {
             if run_workers {
-                click_server::jobs::worker(store, mail, stop_rx).await
+                click_server::jobs::worker(state, stop_rx).await
             }
         }
     });
+    let connections_worker = tokio::spawn(click_server::integrations::worker(
+        state.clone(),
+        stop_tx.subscribe(),
+    ));
     if mode == "worker" {
         shutdown_signal().await;
         stop_tx.send_replace(true);
         background.await?;
         control_worker.await?;
+        connections_worker.await?;
         return Ok(());
     }
     let listener = tokio::net::TcpListener::bind(&config.bind).await?;
@@ -263,6 +282,7 @@ async fn main() -> anyhow::Result<()> {
     stop_tx.send_replace(true);
     background.await?;
     control_worker.await?;
+    connections_worker.await?;
     Ok(())
 }
 async fn shutdown_signal() {

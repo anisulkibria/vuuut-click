@@ -247,3 +247,47 @@ plus separate registry publish jobs. Their remote execution/publication remains
 pending the owner's commit/push, version tag and registry trust/ownership/secrets.
 Local signing is validation-only; production acceptance is not claimed. See
 RELEASE.md and the final CONTINUE.md evidence/limitations.
+
+### Native analytics and external connections — 2026-11-10
+
+Normal CMS Analytics, post traffic/dimensions and compatible traffic stats now
+use Click when connected. Pro setup registers in the background before an Admin
+visit, and native collection suppresses the legacy server collector. Added
+owner-only encrypted provider settings, live service snapshots, licensed
+MaxMind downloader/update worker, hosting credential/configuration helpers and
+backup/recovery support. Documentation and OpenAPI projections are updated.
+Verified55 distinct Click backend checks,3 real native-adapter/browser scenarios,
+11 dashboard browser scenarios, strict Clippy/formatting, tracker build/types,
+85-operation contract coverage and4 backup guards. Licensed MaxMind acceptance
+still requires operator credentials; production release gates remain unchanged.
+
+Device cleanup reclaimed roughly27GiB net while retaining data/configuration.
+Restored hello.localhost after removing a build-dependent tenant executable;
+CMS/hosting/Click runtimes now have installed copies outside cache trees, and
+Pro's private CMS binary path uses its runtime copy. Fixed detached standalone
+startup. All three local services respond successfully on8080/1971/8082.
+
+
+### Native local databases and service control — 2026-11-10
+
+Replaced required local Docker startup with project-owned native PostgreSQL17 and
+checksum-pinned macOS ClickHouse. Added detached start/stop/restart/status,
+setup/doctor, installed build/rebuild, logs/follow, tests and database lifecycle
+commands, with explicit legacy migration and externally managed mode. Native
+backup clients are selected by matching-major installation path. Kept optional
+production/CI container workflows.
+
+Migrated/verified all37 control tables,595,745 distinct analytics rows and20,960
+hourly aggregate results, retaining existing accounts/credentials/provider keys,
+source Docker volumes and private snapshots. Docker's engine is stopped; normal
+local commands work with no Docker executable on PATH. Fixed metadata-cleanup
+worker starvation found by restarting after the full real-store suite. Durable
+native data/runtime paths and recovery are documented in docs/NATIVE_LOCAL.md.
+
+Passed55 backend checks (including ignored store tests),3 real CMS/Pro bridge
+scenarios,11 browser scenarios,21 Python guards, formatting/syntax,85-operation
+contract coverage and28 live responses. Bounded native operational validation
+also passed encrypted backup/isolated restore/replay, corruption/wrong-key guards,
+exact metering/delivery and real OTLP privacy; no production capacity claim.
+Final native restart/doctor and Click/CMS/Pro HTTP checks pass. Public release and
+external acceptance gates remain unchanged; no commit/push performed.

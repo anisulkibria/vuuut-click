@@ -99,7 +99,18 @@ def snapshot(allow_local):
           source=Path(os.environ.get('BACKUP_SECRETS_FILE',ROOT/'.env')).resolve()
           if not source.is_file() or source.stat().st_mode&0o077:raise RuntimeError('BACKUP_SECRETS_FILE must be an existing private configuration file (0600)')
           shutil.copyfile(source,folder/'configuration.env');os.chmod(folder/'configuration.env',0o600);files.append('configuration.env')
-          geoip=os.environ.get('GEOIP_PATH')
+          connections_dir=Path(os.environ.get('CONNECTIONS_DATA_DIR',ROOT/'.local/connections'))
+          key_path=connections_dir/'key'
+          key=bytes.fromhex(os.environ['CONNECTIONS_KEY']) if os.environ.get('CONNECTIONS_KEY') else (key_path.read_bytes() if key_path.exists() else None)
+          with connect(pg) as control:
+            has_connections=control.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='platform_connections')").fetchone()[0]
+            needs_key=has_connections and control.execute('SELECT EXISTS(SELECT 1 FROM platform_connections)').fetchone()[0]
+          if needs_key and (key is None or len(key)!=32):raise RuntimeError('Dashboard connections require their matching private encryption key in the backup')
+          if key is not None:
+            if len(key)!=32:raise RuntimeError('Invalid dashboard connection encryption key')
+            (folder/'connections.key').write_bytes(key);os.chmod(folder/'connections.key',0o600);files.append('connections.key');manifest['connections_key_included']=True
+          geoip=connections_dir/'GeoLite2-Country.mmdb'
+          if not geoip.is_file():geoip=os.environ.get('GEOIP_PATH')
           if geoip:
             shutil.copyfile(geoip,folder/'country.mmdb');os.chmod(folder/'country.mmdb',0o600);files.append('country.mmdb');manifest['geoip_included']=True
           manifest['sha256']={file:file_hash(folder/file) for file in files}
@@ -130,6 +141,7 @@ def verify_files(folder):
         if len(names)!=len(set(names)) or any(not (re.fullmatch(r'events-[0-9]{6}\.native',name) if table=='events' else name=='pageviews_hourly.native') for name in names):raise RuntimeError('Invalid recovery chunk mapping')
         expected.update(names)
     if manifest.get('geoip_included'):expected.add('country.mmdb')
+    if manifest.get('connections_key_included'):expected.add('connections.key')
     if set(manifest['sha256'])!=expected:raise RuntimeError('Recovery file manifest is incomplete')
     for file in expected:
       if file_hash(folder/file)!=manifest['sha256'][file]:raise RuntimeError('Recovery artifact integrity mismatch')
@@ -146,7 +158,7 @@ def restore(snapshot_id,allow_local,keep):
         with tarfile.open(folder/'recovery.tar','r') as archive:
           names=set()
           for member in archive:
-            if not member.isfile() or not (member.name in {'manifest.json','postgres.dump','events.native','pageviews_hourly.native','configuration.env','country.mmdb'} or __import__('re').fullmatch(r'events-[0-9]{6}\.native',member.name)) or member.name in names:raise RuntimeError('Unsafe or duplicate recovery archive member')
+            if not member.isfile() or not (member.name in {'manifest.json','postgres.dump','events.native','pageviews_hourly.native','configuration.env','country.mmdb','connections.key'} or __import__('re').fullmatch(r'events-[0-9]{6}\.native',member.name)) or member.name in names:raise RuntimeError('Unsafe or duplicate recovery archive member')
             names.add(member.name)
             with (folder/member.name).open('wb') as out:os.chmod(out.name,0o600);shutil.copyfileobj(archive.extractfile(member),out)
         manifest=verify_files(folder)

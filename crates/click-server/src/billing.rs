@@ -78,19 +78,23 @@ pub struct Service {
 }
 impl Service {
     pub fn from_env() -> anyhow::Result<Self> {
-        let secret = std::env::var("STRIPE_SECRET_KEY")
+        Self::from_config(&std::env::vars().collect())
+    }
+    pub fn from_config(values: &std::collections::HashMap<String, String>) -> anyhow::Result<Self> {
+        let secret = config_var(values, "STRIPE_SECRET_KEY")
             .ok()
             .filter(|s| !s.is_empty());
         let Some(secret) = secret else {
             if ["STRIPE_WEBHOOK_SECRET", "STRIPE_PRICES_JSON"]
                 .iter()
-                .any(|key| std::env::var(key).is_ok_and(|v| !v.is_empty()))
+                .any(|key| config_var(values, key).is_ok_and(|v| !v.is_empty()))
             {
                 anyhow::bail!("Stripe configuration requires STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET and STRIPE_PRICES_JSON together");
             }
             return Ok(Self { provider: None });
         };
-        if secret.starts_with("sk_live_") && std::env::var("APP_ENV").as_deref() != Ok("production")
+        if secret.starts_with("sk_live_")
+            && config_var(values, "APP_ENV").as_deref() != Ok("production")
         {
             anyhow::bail!(
                 "Stripe live keys require APP_ENV=production; use test keys for validation"
@@ -99,14 +103,14 @@ impl Service {
         if !secret.starts_with("sk_test_") && !secret.starts_with("sk_live_") {
             anyhow::bail!("STRIPE_SECRET_KEY must be a Stripe secret key");
         }
-        let signing = std::env::var("STRIPE_WEBHOOK_SECRET").map_err(|_| {
+        let signing = config_var(values, "STRIPE_WEBHOOK_SECRET").map_err(|_| {
             anyhow::anyhow!("STRIPE_WEBHOOK_SECRET is required when Stripe is enabled")
         })?;
         if !signing.starts_with("whsec_") {
             anyhow::bail!("Invalid Stripe webhook signing secret");
         }
         let prices: HashMap<String, String> = serde_json::from_str(
-            &std::env::var("STRIPE_PRICES_JSON").unwrap_or_else(|_| "{}".into()),
+            &config_var(values, "STRIPE_PRICES_JSON").unwrap_or_else(|_| "{}".into()),
         )?;
         validate_prices(&prices)?;
         let http = reqwest::Client::builder()
@@ -116,7 +120,7 @@ impl Service {
         Ok(Self {
             provider: Some(Arc::new(Stripe {
                 api_base: "https://api.stripe.com/v1".into(),
-                portal_configuration: std::env::var("STRIPE_PORTAL_CONFIGURATION")
+                portal_configuration: config_var(values, "STRIPE_PORTAL_CONFIGURATION")
                     .ok()
                     .filter(|v| !v.is_empty())
                     .map(|v| {
@@ -138,6 +142,17 @@ impl Service {
         })
     }
 }
+fn config_var(
+    values: &std::collections::HashMap<String, String>,
+    key: &str,
+) -> Result<String, std::env::VarError> {
+    values
+        .get(key)
+        .filter(|v| !v.is_empty())
+        .cloned()
+        .ok_or(std::env::VarError::NotPresent)
+}
+
 fn validate_prices(prices: &HashMap<String, String>) -> anyhow::Result<()> {
     let mut identifiers = std::collections::HashSet::new();
     anyhow::ensure!(
@@ -520,7 +535,11 @@ pub async fn checkout(s: &AppState, h: &HeaderMap, org: Uuid, value: &str) -> Ap
     if role != Role::Owner {
         return Err(ApiError::not_found());
     }
-    let provider = s.billing.provider.as_ref().ok_or_else(unavailable)?;
+    let provider = s
+        .billing_service()
+        .provider
+        .clone()
+        .ok_or_else(unavailable)?;
     let (plan, period) = value
         .split_once(':')
         .ok_or_else(|| ApiError::bad("Select a plan and billing interval"))?;
@@ -617,7 +636,11 @@ pub async fn cancel_checkout(s: &AppState, h: &HeaderMap, org: Uuid) -> AppResul
     if role != Role::Owner {
         return Err(ApiError::not_found());
     }
-    let provider = s.billing.provider.as_ref().ok_or_else(unavailable)?;
+    let provider = s
+        .billing_service()
+        .provider
+        .clone()
+        .ok_or_else(unavailable)?;
     let mut tx = s.store.pg.begin().await?;
     workspace::lock_member_even_if_suspended(&mut tx, org, user.id, |r| r == Role::Owner).await?;
     let row:Option<(Uuid,Option<String>,Option<Value>)>=sqlx::query_as("SELECT id,provider_reference,request_snapshot FROM billing_checkouts WHERE organization_id=$1 AND completed_at IS NULL AND cancelled_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1").bind(org).fetch_optional(&mut *tx).await?;
@@ -652,7 +675,11 @@ pub async fn portal(s: &AppState, h: &HeaderMap, org: Uuid) -> AppResult<String>
     if role != Role::Owner {
         return Err(ApiError::not_found());
     }
-    let provider = s.billing.provider.as_ref().ok_or_else(unavailable)?;
+    let provider = s
+        .billing_service()
+        .provider
+        .clone()
+        .ok_or_else(unavailable)?;
     let mut tx = s.store.pg.begin().await?;
     workspace::lock_member_even_if_suspended(&mut tx, org, user.id, |r| r == Role::Owner).await?;
     let customer: Option<String> = sqlx::query_scalar(
@@ -696,7 +723,7 @@ pub async fn test_plan(s: &AppState, h: &HeaderMap, org: Uuid, plan: &str) -> Ap
     if role != Role::Owner
         || !s.config.allow_localhost
         || s.config.secure_cookie
-        || s.billing.provider.is_some()
+        || s.billing_service().provider.is_some()
     {
         return Err(ApiError::not_found());
     }
@@ -730,7 +757,7 @@ pub async fn settings(s: &AppState, _h: &HeaderMap, org: Uuid, role: Role) -> Ap
             "<section class=panel><p>Workspace owners manage subscriptions.</p></section>".into(),
         );
     }
-    if let Some(provider) = &s.billing.provider {
+    if let Some(provider) = &s.billing_service().provider {
         let (can_checkout,has_customer):(bool,bool)=sqlx::query_as("SELECT NOT(provider=$1 AND provider_reference IS NOT NULL AND status NOT IN ('free','cancelled')),provider=$1 AND provider_customer IS NOT NULL FROM subscriptions WHERE organization_id=$2").bind(provider.name()).bind(org).fetch_one(&s.store.pg).await?;
         let pending:Option<(String,String,chrono::DateTime<chrono::Utc>)>=sqlx::query_as("SELECT plan_id,billing_period,expires_at FROM billing_checkouts WHERE organization_id=$1 AND completed_at IS NULL AND cancelled_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1").bind(org).fetch_optional(&s.store.pg).await?;
         let pending=pending.map(|(plan,period,expiry)|format!(r#"<p>Pending checkout: {} · {}. Expires {} UTC. Resume the same selection below, or cancel before choosing another.</p><form method="post" action="/settings/action"><input type="hidden" name="action" value="cancel_checkout"><input type="hidden" name="organization_id" value="{org}"><button class="btn outlined small">Cancel pending checkout</button></form>"#,esc(&plan),esc(&period),expiry.format("%d %b %H:%M"))).unwrap_or_default();
@@ -768,7 +795,11 @@ pub async fn webhook(
     h: HeaderMap,
     body: Bytes,
 ) -> AppResult<StatusCode> {
-    let provider = s.billing.provider.as_ref().ok_or_else(unavailable)?;
+    let provider = s
+        .billing_service()
+        .provider
+        .clone()
+        .ok_or_else(unavailable)?;
     let event = provider.verify(&h, &body)?;
     apply_event(&s, provider.as_ref(), event).await?;
     Ok(StatusCode::OK)

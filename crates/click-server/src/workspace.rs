@@ -316,7 +316,7 @@ pub async fn invite_member(
     // message cannot disagree about existing: no row, no mail, and a mail
     // that fails is retried by the outbox worker rather than lost.
     let accept_url = format!("{}/invite#{}", s.config.public_url, token);
-    let emailed = s.mail.available();
+    let emailed = s.mail_service().available();
     if emailed {
         let workspace: String = sqlx::query_scalar("SELECT name FROM organizations WHERE id=$1")
             .bind(org)

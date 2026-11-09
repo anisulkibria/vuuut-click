@@ -10,6 +10,7 @@ pub mod demo;
 pub mod explore;
 mod explore_ui;
 pub mod insights;
+pub mod integrations;
 pub mod jobs;
 pub mod landing;
 pub mod mail;
@@ -45,6 +46,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct AppState {
     pub store: Store,
+    pub integrations: Arc<integrations::Connections>,
     pub operations: Arc<operations::Operations>,
     pub billing: Arc<billing::Service>,
     pub mail: Arc<mail::Mailer>,
@@ -138,6 +140,21 @@ impl Drop for TenantPermit {
     }
 }
 impl AppState {
+    pub fn billing_service(&self) -> Arc<billing::Service> {
+        self.integrations
+            .billing()
+            .unwrap_or_else(|| self.billing.clone())
+    }
+    pub fn mail_service(&self) -> Arc<mail::Mailer> {
+        self.integrations
+            .mail()
+            .unwrap_or_else(|| self.mail.clone())
+    }
+    pub fn geoip_service(&self) -> Arc<GeoIp> {
+        self.integrations
+            .geoip()
+            .unwrap_or_else(|| self.geoip.clone())
+    }
     pub fn new(store: Store, config: Config) -> anyhow::Result<Self> {
         let billing = billing::Service::from_env()?;
         let mail = mail::Mailer::from_env(config.allow_localhost)?;
@@ -163,6 +180,7 @@ impl AppState {
             .to_string();
         Ok(Self {
             store,
+            integrations: Arc::new(integrations::Connections::memory()),
             operations: Arc::new(operations::Operations::local()),
             billing: Arc::new(billing),
             mail: Arc::new(mail),
@@ -487,6 +505,11 @@ pub fn app(state: AppState) -> Router {
         .route("/appearance", post(dashboard::appearance))
         .route("/internal/metrics", get(operations::metrics))
         .route("/owner/commercial", get(commercial::page))
+        .route("/assets/connections.js", get(integrations::script))
+        .route(
+            "/owner/connections",
+            get(integrations::page).post(integrations::action),
+        )
         .route("/owner/v1/commercial", get(commercial::api))
         .route("/owner/commercial/retry-mail", post(commercial::retry_mail))
         .route("/assets/app.css", get(dashboard::stylesheet))
