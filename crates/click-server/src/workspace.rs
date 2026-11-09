@@ -338,11 +338,12 @@ pub async fn invite_member(
             ),
             user.email, workspace, input.role, accept_url, email
         );
-        sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body) VALUES($1,$2,$3,$4)")
+        sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body,expires_at,invitation_id) VALUES($1,$2,$3,$4,now()+interval '7 days',$5)")
             .bind(Uuid::new_v4())
             .bind(&email)
             .bind(subject)
             .bind(body)
+            .bind(id)
             .execute(&mut *tx)
             .await?;
     }

@@ -475,12 +475,12 @@ pub async fn request_reset(
                 .bind(user)
                 .fetch_one(&mut *tx)
                 .await?;
-        let count:i64=sqlx::query_scalar("SELECT count(*) FROM account_tokens WHERE user_id=$1 AND purpose='owner_reset' AND used_at IS NULL AND expires_at>now()").bind(user).fetch_one(&mut *tx).await?;
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM account_tokens WHERE user_id=$1 AND purpose='owner_reset' AND ((used_at IS NULL AND expires_at>now()) OR created_at>now()-interval '15 minutes')").bind(user).fetch_one(&mut *tx).await?;
         if owner && count < 3 {
             let token = auth::secret();
             sqlx::query("INSERT INTO account_tokens(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'owner_reset',now()+interval '30 minutes')").bind(digest(&token)).bind(user).execute(&mut *tx).await?;
             let body=format!("Reset your Vuuut Click owner password\n\nOpen {}/owner/account/reset#{}\n\nExpires in 30 minutes. Two-factor authentication remains required if enabled. If you did not request this, ignore it.",s.config.public_url,token);
-            sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body) VALUES($1,$2,'Reset your Vuuut Click owner password',$3)").bind(Uuid::new_v4()).bind(email).bind(body).execute(&mut *tx).await?;
+            sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body,expires_at,account_token_hash) VALUES($1,$2,'Reset your Vuuut Click owner password',$3,now()+interval '30 minutes',$4)").bind(Uuid::new_v4()).bind(email).bind(body).bind(digest(&token)).execute(&mut *tx).await?;
         }
     }
     tx.commit().await?;

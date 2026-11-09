@@ -26,9 +26,31 @@ enum Mode {
     Smtp {
         transport: AsyncSmtpTransport<Tokio1Executor>,
         from: lettre::message::Mailbox,
+        allowed_recipient: Option<String>,
     },
 }
 impl Mailer {
+    pub fn local(directory: std::path::PathBuf) -> Self {
+        Self {
+            mode: Mode::File(directory),
+        }
+    }
+    pub async fn send_probe(&self, recipient: &str) -> anyhow::Result<()> {
+        let Mode::Smtp {
+            transport, from, ..
+        } = &self.mode
+        else {
+            anyhow::bail!("SMTP must be configured for the delivery probe")
+        };
+        let address: lettre::Address = recipient.parse()?;
+        let message=Message::builder().from(from.clone()).to(lettre::message::Mailbox::new(None,address)).subject("Vuuut Click commercial SMTP validation").body("This message was requested to validate Vuuut Click SMTP delivery. No account or payment has been changed. SMTP acceptance must be confirmed in the recipient inbox before marking delivery verified.".to_owned())?;
+        transport
+            .send(message)
+            .await
+            .map_err(|_| anyhow::anyhow!("SMTP probe was rejected or unavailable"))?;
+        Ok(())
+    }
+
     pub fn from_env(local: bool) -> anyhow::Result<Self> {
         if let Ok(host) = std::env::var("SMTP_HOST") {
             if !host.trim().is_empty() {
@@ -59,6 +81,13 @@ impl Mailer {
                     mode: Mode::Smtp {
                         transport: builder.build(),
                         from,
+                        allowed_recipient: if local {
+                            let recipient=std::env::var("COMMERCIAL_TEST_EMAIL").map_err(|_|anyhow::anyhow!("Development SMTP requires COMMERCIAL_TEST_EMAIL to limit delivery to your test inbox"))?;
+                            let _: lettre::Address = recipient.parse()?;
+                            Some(recipient)
+                        } else {
+                            None
+                        },
                     },
                 });
             }
@@ -71,72 +100,96 @@ impl Mailer {
             },
         })
     }
+    pub fn mode(&self) -> &'static str {
+        match self.mode {
+            Mode::Disabled => "disabled",
+            Mode::File(_) => "local_file",
+            Mode::Smtp { .. } => "smtp",
+        }
+    }
     pub fn available(&self) -> bool {
         !matches!(self.mode, Mode::Disabled)
     }
     pub fn notice(&self) -> &'static str {
-        match self.mode{Mode::File(_)=>"Development email is queued in the private local mailbox (.local/mail). No external email is sent.",Mode::Smtp{..}=>"If the account exists, a message has been queued for delivery. Check your inbox.",Mode::Disabled=>"Email delivery is not configured. Contact the operator."}
+        match self.mode{Mode::File(_)=>"Development email is queued in the private local mailbox (.local/mail). No external email is sent.",Mode::Smtp{allowed_recipient:Some(_),..}=>"Development SMTP delivers only to the configured test inbox.",Mode::Smtp{..}=>"If the account exists, a message has been queued for delivery. Check your inbox.",Mode::Disabled=>"Email delivery is not configured. Contact the operator."}
     }
     pub async fn drain_once(&self, store: &click_store::Store) -> anyhow::Result<()> {
+        sqlx::query("UPDATE mail_outbox SET state='expired',body=NULL,last_error='link_expired' WHERE state IN ('pending','dead') AND (expires_at<=now() OR EXISTS(SELECT 1 FROM account_tokens t WHERE t.token_hash=mail_outbox.account_token_hash AND (t.used_at IS NOT NULL OR t.expires_at<=now())) OR EXISTS(SELECT 1 FROM invitations i WHERE i.id=mail_outbox.invitation_id AND (i.accepted_at IS NOT NULL OR i.revoked_at IS NOT NULL OR i.expires_at<=now())))").execute(&store.pg).await?;
+        sqlx::query("DELETE FROM mail_outbox WHERE state IN ('delivered','expired') AND created_at<now()-interval '30 days'").execute(&store.pg).await?;
         if !self.available() {
             return Ok(());
         }
         let mut tx = store.pg.begin().await?;
-        let row:Option<(Uuid,String,String,String)>=sqlx::query_as("SELECT id,recipient,subject,body FROM mail_outbox WHERE state='pending' AND available_at<=now() ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED").fetch_optional(&mut *tx).await?;
+        let row:Option<(Uuid,String,String,String)>=sqlx::query_as("SELECT id,recipient,subject,body FROM mail_outbox WHERE state='pending' AND body IS NOT NULL AND available_at<=now() AND (expires_at IS NULL OR expires_at>now()) ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED").fetch_optional(&mut *tx).await?;
         let Some((id, to, subject, body)) = row else {
             return Ok(());
         };
-        let result: anyhow::Result<()> = match &self.mode {
-            Mode::File(directory) => {
-                let directory = directory.clone();
-                let message = format!("To: {to}\nSubject: {subject}\n\n{body}\n");
-                tokio::task::spawn_blocking(move || {
-                    std::fs::create_dir_all(&directory)?;
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::PermissionsExt;
-                        std::fs::set_permissions(
-                            &directory,
-                            std::fs::Permissions::from_mode(0o700),
-                        )?;
+        // Keep construction/file/SMTP failures inside the same retry boundary.
+        // An invalid address must consume attempts, not roll back forever.
+        let result: anyhow::Result<()> = async {
+            let _: lettre::Address = to.parse()?;
+            match &self.mode {
+                Mode::File(directory) => {
+                    let directory = directory.clone();
+                    let message = format!("To: {to}\nSubject: {subject}\n\n{body}\n");
+                    tokio::task::spawn_blocking(move || {
+                        std::fs::create_dir_all(&directory)?;
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            std::fs::set_permissions(
+                                &directory,
+                                std::fs::Permissions::from_mode(0o700),
+                            )?;
+                        }
+                        let path = directory.join(format!("{id}.eml"));
+                        let mut options = std::fs::OpenOptions::new();
+                        options.write(true).create(true).truncate(true);
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::OpenOptionsExt;
+                            options.mode(0o600);
+                        }
+                        let mut file = options.open(path)?;
+                        use std::io::Write;
+                        file.write_all(message.as_bytes())?;
+                        file.sync_all()?;
+                        Ok::<_, anyhow::Error>(())
+                    })
+                    .await??;
+                    Ok(())
+                }
+                Mode::Smtp {
+                    transport,
+                    from,
+                    allowed_recipient,
+                } => {
+                    if !test_recipient_allowed(allowed_recipient.as_deref(), &to) {
+                        anyhow::bail!(
+                            "Development SMTP recipient is outside the configured test inbox"
+                        );
                     }
-                    let path = directory.join(format!("{id}.eml"));
-                    let mut options = std::fs::OpenOptions::new();
-                    options.write(true).create(true).truncate(true);
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::OpenOptionsExt;
-                        options.mode(0o600);
-                    }
-                    let mut file = options.open(path)?;
-                    use std::io::Write;
-                    file.write_all(message.as_bytes())?;
-                    file.sync_all()?;
-                    Ok::<_, anyhow::Error>(())
-                })
-                .await??;
-                Ok(())
+                    let message = Message::builder()
+                        .from(from.clone())
+                        .to(to.parse()?)
+                        .subject(subject)
+                        .body(body)?;
+                    transport
+                        .send(message)
+                        .await
+                        .map(|_| ())
+                        .map_err(Into::into)
+                }
+                Mode::Disabled => Ok(()),
             }
-            Mode::Smtp { transport, from } => {
-                let message = Message::builder()
-                    .from(from.clone())
-                    .to(to.parse()?)
-                    .subject(subject)
-                    .body(body)?;
-                transport
-                    .send(message)
-                    .await
-                    .map(|_| ())
-                    .map_err(Into::into)
-            }
-            Mode::Disabled => Ok(()),
-        };
-        if let Err(error) = result {
-            sqlx::query("UPDATE mail_outbox SET attempts=attempts+1,available_at=now()+interval '1 minute',state=CASE WHEN attempts>=9 THEN 'dead' ELSE 'pending' END WHERE id=$1").bind(id).execute(&mut *tx).await?;
-            tx.commit().await?;
-            return Err(error);
         }
-        sqlx::query("UPDATE mail_outbox SET state='delivered',body=NULL WHERE id=$1")
+        .await;
+        if result.is_err() {
+            sqlx::query("UPDATE mail_outbox SET attempts=attempts+1,available_at=now()+make_interval(secs=>least(3600,60*(1<<least(attempts,6)))),last_error='delivery_failed',state=CASE WHEN attempts>=9 THEN 'dead' ELSE 'pending' END WHERE id=$1").bind(id).execute(&mut *tx).await?;
+            tx.commit().await?;
+            anyhow::bail!("Mail delivery failed; durable retry state was recorded");
+        }
+        sqlx::query("UPDATE mail_outbox SET state='delivered',body=NULL,delivered_at=now(),last_error=NULL WHERE id=$1")
             .bind(id)
             .execute(&mut *tx)
             .await?;
@@ -161,11 +214,13 @@ pub async fn enqueue_account_token(
         "Verify your Vuuut Click email"
     };
     let body=format!("{subject}\n\nOpen {base}/account/{purpose}#{token}\n\nThis link expires in {} minutes and can be used once.",ttl/60);
-    sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body) VALUES($1,$2,$3,$4)")
+    sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body,expires_at,account_token_hash) VALUES($1,$2,$3,$4,now()+make_interval(secs=>$5::int),$6)")
         .bind(Uuid::new_v4())
         .bind(email)
         .bind(subject)
         .bind(body)
+        .bind(ttl)
+        .bind(click_core::digest(&token))
         .execute(tx)
         .await?;
     Ok(())
@@ -200,7 +255,7 @@ pub async fn request_token(s: &AppState, email: &str, purpose: &str) -> AppResul
     if owner {
         return Ok(());
     }
-    let outstanding:i64=sqlx::query_scalar("SELECT count(*) FROM account_tokens WHERE user_id=$1 AND purpose=$2 AND expires_at>now() AND used_at IS NULL").bind(user).bind(purpose).fetch_one(&mut *tx).await?;
+    let outstanding:i64=sqlx::query_scalar("SELECT count(*) FROM account_tokens WHERE user_id=$1 AND purpose=$2 AND ((expires_at>now() AND used_at IS NULL) OR created_at>now()-interval '15 minutes')").bind(user).bind(purpose).fetch_one(&mut *tx).await?;
     if outstanding >= 3 {
         return Ok(());
     }
@@ -214,11 +269,13 @@ pub async fn request_token(s: &AppState, email: &str, purpose: &str) -> AppResul
     };
     let link = format!("{}/account/{purpose}#{token}", s.config.public_url);
     let body=format!("{label}\n\nOpen this link to continue:\n{link}\n\nThe link expires in {} minutes and can be used once. If you did not request this, you can ignore it.",ttl/60);
-    sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body) VALUES($1,$2,$3,$4)")
+    sqlx::query("INSERT INTO mail_outbox(id,recipient,subject,body,expires_at,account_token_hash) VALUES($1,$2,$3,$4,now()+make_interval(secs=>$5::int),$6)")
         .bind(Uuid::new_v4())
         .bind(email)
         .bind(label)
         .bind(body)
+        .bind(ttl)
+        .bind(click_core::digest(&token))
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
@@ -412,4 +469,30 @@ pub async fn verify_form(
 }
 pub async fn script() -> Response {
     ([(header::CONTENT_TYPE,"application/javascript; charset=utf-8")],r#"if(/^#[a-f0-9]{64}$/.test(location.hash)){document.getElementById('account-token').value=location.hash.slice(1);history.replaceState(null,'',location.pathname)}"#).into_response()
+}
+
+fn test_recipient_allowed(allowed: Option<&str>, recipient: &str) -> bool {
+    allowed.is_none_or(|address| address.eq_ignore_ascii_case(recipient))
+}
+#[cfg(test)]
+mod delivery_scope_tests {
+    #[test]
+    fn development_smtp_does_not_send_fixtures_to_other_addresses() {
+        assert!(super::test_recipient_allowed(
+            Some("Operator@example.com"),
+            "operator@example.com"
+        ));
+        assert!(!super::test_recipient_allowed(
+            Some("operator@example.com"),
+            "fixture@test.example"
+        ));
+        assert!(!super::test_recipient_allowed(
+            Some("operator@example.com"),
+            "operator@example.com.evil"
+        ));
+        assert!(super::test_recipient_allowed(
+            None,
+            "registered-customer@example.org"
+        ));
+    }
 }

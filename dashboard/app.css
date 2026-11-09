@@ -26,3 +26,32 @@ textarea{font:inherit;border:1px solid var(--outline);border-radius:10px;padding
 .owner-console .btn{font-size:12px;min-height:44px}
 .owner-console .owner-table th{font-size:12px;font-weight:600;line-height:1.5;padding-bottom:14px}
 .owner-console .owner-table td{font-size:13px;line-height:1.5;padding-block:12px}
+
+
+/* Customer report and workspace text; owner-console typography stays scoped separately. */
+.customer-console{font-size:14px}
+.customer-console .page-heading p{font-size:14px}
+.customer-console .panel h2{font-size:20px;line-height:1.35}
+.customer-console .panel h3{font-size:15px}
+.customer-console th{font-size:12px;line-height:1.5}
+.customer-console td,.customer-console tbody th{font-size:13px;line-height:1.6}
+.customer-console label,.customer-console input,.customer-console select,.customer-console textarea,.customer-console .btn{font-size:13px}
+.customer-console input::placeholder{font-size:13px}
+.customer-console .muted,.customer-console .panel-heading p,.customer-console .metric-label,.customer-console .legend,.customer-console .chart-values,.customer-console .chart-empty span,.customer-console .chart-empty a,.customer-console .empty-table small,.customer-console .row-edit summary,.customer-console .settings-stat-grid span,.customer-console .journey-list time,.customer-console .journey-list small{font-size:12px}
+.customer-console .metric-note,.customer-console .badge,.customer-console .pill,.customer-console .eyebrow,.customer-console .page-footer{font-size:11px}
+.customer-console .settings-tabs a,.customer-console .settings-confirm,.customer-console .settings-panel>p,.customer-console .journey-list li,.customer-console .notice,.customer-console .alert{font-size:13px}
+.customer-console code{font-size:12px}
+.customer-console .chart-labels{font-size:12px}
+.customer-console td.row-actions{display:table-cell;width:auto;text-align:right;vertical-align:middle}
+.customer-console .row-actions form{display:flex;justify-content:flex-end}
+.customer-console .goal-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+.customer-console .goals-panel .number{width:auto}
+.events-report .panel-grid{grid-template-columns:minmax(0,1fr)}
+.event-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;align-items:end;gap:16px;margin:0 0 24px}
+.event-filters label{min-width:0}
+.event-filters .btn{min-height:48px}
+.event-context .owner-table{max-height:560px;overflow:auto;overscroll-behavior:contain}
+.event-context thead th{position:sticky;top:0;z-index:1;background:var(--card);padding-block:12px}
+.event-context tbody th{color:var(--on-surface);font-weight:500;padding-block:13px;overflow-wrap:anywhere}
+@media(max-width:950px){.event-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.customer-console .goal-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:650px){.event-filters,.customer-console .goal-form{grid-template-columns:minmax(0,1fr)}.event-filters .btn{justify-self:start}.customer-console .goal-form .btn{grid-column:auto}.customer-console .toolbar form{flex-wrap:wrap}.customer-console .toolbar select{max-width:100%}.customer-console .toolbar select:first-of-type{flex:1;max-width:100%;width:150px}.customer-console .panel-heading{flex-wrap:wrap}}

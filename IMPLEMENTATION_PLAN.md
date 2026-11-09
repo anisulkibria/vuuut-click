@@ -9,12 +9,12 @@ This is a new application. Production release remains gated on the items below.
 3. **Basic SaaS foundation — implemented** — registration/login/logout, memberships and RBAC, website credentials, transactional quota metering, event-match goals, scoped APIs, setup, light/dark/system themes. Roles and cross-tenant negative tests pass. Team invitations, organization lifecycle and account/credential/privacy settings are now implemented and tested locally; production hardening remains gated.
 4. **Advanced analytics — Priority 3 implemented** — ordered session funnels, journeys, first/last/non-direct net revenue attribution, Web Vitals percentiles, exports, per-tenant deletion/retention. Real-database and browser validation completed. Period comparisons, richer content/acquisition/event reports, optional visible-time/scroll tracking, provided-identity retention/cohorts, visitor/prefix funnels, newsletter editions and currency-separated campaign-cost/ROI reporting are implemented; goal/funnel editing is complete. See docs/ANALYTICS_METRICS.md for coverage semantics.
 5. **Ghost integration — Priority 2 complete and verified** — versioned idempotent provisioning, domain/lifecycle/entitlement sync, pinned RS256/JWKS staff exchange, signed transactional CMS outboxes, retries/rotation/disconnect, consent-aware tracker injection and native Admin reports are implemented in all three repositories. Terminal erasure and fresh-mapping restoration are covered. See docs/GHOST_INTEGRATION.md and CONTINUE.md for final verification evidence.
-6. **Commercial operations — adapters implemented, release gates pending** — Stripe checkout/portal/signed webhooks and entitlement dedup, account verification/reset, team invitation links, private local/SMTP mail and owner management controls implemented and locally tested. Real SMTP/payment-account validation, distributed abuse controls, optional NATS scaling, OTel, monitoring, encrypted backups/restore drills, scanning and 1M/10M/100M benchmarks remain pending.
+6. **Commercial operations — Priority 4 complete in test scope** — Exact Stripe checkout retry/cancellation, safe portal/webhook entitlement transitions, bounded source-linked mail and owner fulfillment monitoring are implemented. Real Stripe test-clock renewal failure/recovery/replay/cancellation, hosted Checkout and controlled-inbox verification/customer reset/owner reset/invitation passed. Manual portal annual change and scheduled cancellation also passed; isolated fixtures were cleaned up and the operator deferred public-domain setup. Distributed abuse controls, OTel/alerts, encrypted backup/restore drills, scanning and scale benchmarks remain Priority 5 gates. See docs/COMMERCIAL_VALIDATION.md.
 
 ## Unknowns / external configuration
 
 - Licensed production GeoLite Country MMDB requires the operator's MaxMind account/license. Test-only upstream MMDB may be used in automated integration tests; never ship it as production geolocation.
-- Production domains/TLS, payment provider, SMTP and S3 credentials are not supplied. No fabricated payment success or benchmark claims.
+- Verified Stripe test credentials and controlled-inbox SMTP are configured privately. The operator explicitly deferred public-domain/TLS setup; production MaxMind and backup storage remain external inputs. Test validation prices do not define commercial launch pricing. No live charges or benchmark claims.
 - Full product scope spans multiple milestones. See release gaps in docs/SECURITY.md and docs/DEPLOYMENT.md.
 
 ## Verification
@@ -161,7 +161,7 @@ Owner typography adjustment at the user’s request: reduced the first increase 
 Further owner typography reduction requested by the user: 13px body/rows/controls, 12px labels/headers/buttons, 19px panel headings and 12px vertical row padding.
 
 
-### User-requested pause — 2026-11-09
+### Historical user-requested pause — 2026-11-09 (resumed below)
 
 Priority 3 implementation is applied across all three local applications.
 Final checks: Click 39 tests (all real-store integrations included), CMS 73
@@ -172,3 +172,45 @@ last comparison request; preceding measurement assertions pass. Rerun the full
 suite with heavy database/build work idle before declaring final verification
 complete. The user will commit/push and resume later; no further work is
 authorized during this pause. CONTINUE.md records restart details and evidence.
+
+
+### Priority 3 verification complete — 2026-11-09
+
+Resumed at the user's request. All **9/9 Playwright scenarios passed together
+in 50.0 seconds** with heavy builds/database suites idle. The final engagement
+comparison and export-refresh regression pass; no assertions were relaxed and
+no source-code change was needed. Runtime checks confirm healthy 8082/1971/8080,
+all four hosted mappings synchronized, schema 40 active CMS sites, correct
+suspended markers and no private credentials in public pages. Main and test
+Click logs have no errors since their latest restarts. Temporary 8083 was
+stopped. This supersedes the preceding pause's pending browser status.
+Priority 3 is complete locally; priorities 4–6 production gates remain.
+
+
+### Customer dashboard design refinement — 2026-11-09
+
+Fixed Events filter/grid placement, made detailed results full width with a
+bounded keyboard-scrollable table/sticky headers, kept goals near the top and
+corrected goal action-cell/form layout. Customer panel text is slightly larger
+through scoped styles: 13px rows/controls, 12px headers/supporting text and
+20px headings. Computed sizes and responsive layout pass on 20 customer screens
+at desktop/tablet/phone widths; all nine browser scenarios pass. Strict Clippy,
+formatting and all 39 backend checks pass (one environmental demo-seed memory
+refusal recovered on a focused rerun). Updated app runs on localhost:8082.
+
+
+### Priority 4 verification — 2026-11-10 (Asia/Dhaka)
+
+Commercial safeguards are implemented with additive PG migrations 0012–0013.
+Formatting and strict Clippy pass; all 47 backend checks pass serially including
+23 real-store scenarios, and all 11 browser scenarios pass together. Three
+external-helper guards pass. Real Stripe test API/webhook and Gmail inbox/link
+checks are documented in docs/COMMERCIAL_VALIDATION.md, with manual hosted
+Checkout independently observed. The operator will add the deployment domain
+later; none of the connected Hostinger domains is selected or changed. Manual
+portal annual change and scheduled cancellation passed and the QA resources
+were cleaned up. Main8082 retains verified test billing/SMTP with its matching
+active listener. The local
+ClickHouse instance required a graceful restart after the database suite hit
+its total-memory allowance; final browser assertions were unchanged. Production
+capacity and deployment gates remain outstanding.

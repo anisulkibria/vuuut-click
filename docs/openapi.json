@@ -4307,6 +4307,74 @@
           }
         }
       }
+    },
+    "/owner/v1/commercial": {
+      "get": {
+        "summary": "Operator commercial fulfillment status without mail bodies or credentials",
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current provider modes, durable maintenance evidence and queue counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommercialStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current full owner session/grant"
+          }
+        }
+      }
+    },
+    "/owner/commercial/retry-mail": {
+      "post": {
+        "summary": "Retry a dead message while its source link remains valid; exact Origin required",
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Retry queued; redirect to /owner/commercial"
+          },
+          "401": {
+            "description": "Full platform owner session required"
+          },
+          "403": {
+            "description": "Origin refused"
+          },
+          "409": {
+            "description": "Message is not dead, has no body, or its link is consumed/revoked/expired"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5102,6 +5170,137 @@
           "kind"
         ],
         "additionalProperties": false
+      },
+      "CommercialStatus": {
+        "type": "object",
+        "required": [
+          "observed_at",
+          "billing_provider",
+          "billing_mode",
+          "mail_mode",
+          "checks",
+          "queues"
+        ],
+        "properties": {
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "billing_provider": {
+            "type": "string"
+          },
+          "billing_mode": {
+            "type": "string"
+          },
+          "mail_mode": {
+            "type": "string",
+            "enum": [
+              "smtp",
+              "local_file",
+              "disabled"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "last_started_at",
+                "last_succeeded_at",
+                "last_failed_at",
+                "last_error",
+                "failures"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "retention",
+                    "deletion",
+                    "exports",
+                    "mail"
+                  ]
+                },
+                "last_started_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "last_succeeded_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "last_failed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "last_error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "failures": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "queues": {
+            "type": "object",
+            "required": [
+              "pending_mail",
+              "dead_mail",
+              "expired_mail",
+              "old_pending_mail",
+              "pending_exports",
+              "old_pending_exports",
+              "pending_deletions",
+              "old_pending_deletions"
+            ],
+            "properties": {
+              "pending_mail": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "dead_mail": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expired_mail": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "old_pending_mail": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending_exports": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "old_pending_exports": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending_deletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "old_pending_deletions": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
       }
     }
   }

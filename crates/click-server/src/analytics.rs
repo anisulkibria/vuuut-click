@@ -657,6 +657,10 @@ pub async fn backend_event(
         .accept_integration(&site, vec![clean], &click_core::digest(token))
         .await
         .map_err(|e| match e {
+            click_store::AcceptError::BillingPaused => ApiError {
+                status: StatusCode::TOO_MANY_REQUESTS,
+                message: "Collection is paused until billing is resolved",
+            },
             click_store::AcceptError::Quota => ApiError {
                 status: StatusCode::TOO_MANY_REQUESTS,
                 message: "Monthly event allowance reached",

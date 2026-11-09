@@ -14,7 +14,7 @@ Current rate limits are per-process bounded buckets and do not replace edge/dist
 
 ## Release gates
 
-Not yet production ready: MFA review, distributed/per-tenant request budgets, expanded abuse/concurrency testing, audited SSO, live SMTP/payment validation, OTel, dependency and image scanning, encrypted backup/restore drills and independent security review remain required. Email verification/reset, invitation/role/key lifecycle, durable privacy jobs and signature-verified billing workflows are implemented and locally tested. Reports have four concurrent requests per workspace and sixteen per process, plus ClickHouse time/memory/result limits. These request budgets are per process; distributed enforcement remains a release gate. Enforce deployment resource and data-volume budgets before public access.
+Not yet production ready: MFA review, distributed/per-tenant request budgets, expanded abuse/concurrency testing, audited SSO, deployment-specific payment/sender configuration and public sender authentication, OTel, dependency and image scanning, encrypted backup/restore drills and independent security review remain required. Email verification/reset, invitation/role/key lifecycle, durable privacy jobs and signature-verified billing workflows are implemented and tested locally; real Stripe test-mode and controlled-inbox SMTP evidence is in COMMERCIAL_VALIDATION.md. Reports have four concurrent requests per workspace and sixteen per process, plus ClickHouse time/memory/result limits. These request budgets are per process; distributed enforcement remains a release gate. Enforce deployment resource and data-volume budgets before public access.
 
 Hosted operator is responsible for processor agreements, policies, retention/deletion fulfillment and incident response; customers control collection purposes and consent. Self-hosted operators assume both deployment and processing duties. No universal GDPR/ePrivacy compliance claim. Honor browser DNT/GPC and require explicit SDK consent unless an operator deliberately chooses anonymous mode after applicable review.
 
@@ -26,7 +26,7 @@ The owner sidebar links to `/owner/account` for display name, password, other-se
 
 Once enrolled, password sign-in creates only a five-minute `owner_pending` session with a separate HttpOnly cookie scoped to `/owner`. It cannot read customer or owner data. Completing the challenge consumes the TOTP step or recovery code and the pending session atomically; five failures exhaust that challenge. A full owner session is issued only after successful verification. The current-password check, session/grant recheck, factor consumption and account updates serialize on the user row. Customer password changes invalidate outstanding customer reset links and all older customer sessions. Login, reset and operator promotion take the same account lock.
 
-Owner email recovery starts at `/owner/forgot-password`. The token is separate from customer reset tokens, expires after 30 minutes, permits five factor attempts, and can be used once. Email recovery still requires a fresh authenticator or unused recovery code if MFA is enabled; it never disables MFA. Successful recovery invalidates all account tokens and sessions. If an owner has lost the authenticator and all recovery codes, the email link alone cannot recover access: an authorized database operator must follow a verified identity/recovery procedure. There is no public MFA bypass. External SMTP delivery and independent MFA/security review remain release gates.
+Owner email recovery starts at `/owner/forgot-password`. The token is separate from customer reset tokens, expires after 30 minutes, permits five factor attempts, and can be used once. Email recovery still requires a fresh authenticator or unused recovery code if MFA is enabled; it never disables MFA. Successful recovery invalidates all account tokens and sessions. If an owner has lost the authenticator and all recovery codes, the email link alone cannot recover access: an authorized database operator must follow a verified identity/recovery procedure. There is no public MFA bypass. Controlled-inbox owner SMTP recovery has passed; public sender deliverability and independent MFA/security review remain release gates.
 
 Authenticator shared secrets must remain retrievable to verify codes. They are currently stored in the private PostgreSQL database, so encrypted disks/backups and strict database access matter; application-level encryption and managed key rotation are not claimed. Do not capture enrollment/recovery pages in production logs or support screenshots. Generated development screenshots and mail remain ignored artifacts.
 
@@ -70,3 +70,24 @@ website integration credential or a managing customer session with exact
 Origin, with authorization rechecked under the workspace lock. Source
 references are hashed and revisions reject conflicting/stale updates; supplied
 costs are labeled with their provenance, not presented as provider-verified.
+
+Commercial validation stores exact checkout parameters privately to preserve
+provider idempotency across retries/ownership/configuration changes. Cancelled
+sessions are acknowledged by the provider before reopening a selection; portal
+privileges are rechecked after network I/O. Native hosting plans cannot be
+replaced with test billing. Mail failures consume bounded attempts; source
+expiry/revocation/consumption clears queued bodies and refuses operator retry.
+Reset-request cooldown is durable per account/purpose, including consumed tokens.
+Owner-only fulfillment responses contain counts, times and generic codes, never
+message bodies or credentials. The test helper requires development/test mode,
+isolates its stores and checks owned process/database identity during cleanup.
+
+
+Billing settings alone allow form redirects to the exact HTTPS origins
+`checkout.stripe.com` and `billing.stripe.com`; every other page keeps self-only
+form targets. Provider URLs independently reject other hosts, ports and userinfo.
+The browser regression verifies actual allowed navigation and lookalike-host
+blocking. Development SMTP is restricted to `COMMERCIAL_TEST_EMAIL` whenever
+`ALLOW_LOCALHOST=true`; fixture services use local files regardless of operator
+credentials. Public sender authentication and the deployment abuse contact
+remain separate checks; same-inbox Gmail receipt does not establish alignment.

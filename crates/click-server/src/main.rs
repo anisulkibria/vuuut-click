@@ -11,6 +11,12 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| "click_server=info,tower_http=info".into()),
         )
         .init();
+    let mode = std::env::args().nth(1).unwrap_or_else(|| "serve".into());
+    if matches!(mode.as_str(), "--help" | "-h" | "help") {
+        println!("Vuuut Click commands: serve | worker | migrate | requeue-dead | seed-demo <email> | grant-owner <email> | native-platform <id> <suffix> | native-platform-disable <id> | commercial-check | commercial-mail-test | commercial-dns-test");
+        println!("Load trusted private environment for service commands. Commercial payment validation requires Stripe test keys; mail probes require COMMERCIAL_TEST_EMAIL. See docs/COMMERCIAL_VALIDATION.md.");
+        return Ok(());
+    }
     let config = Config::from_env()?;
     let store = Store::connect(
         &config.database_url,
@@ -21,7 +27,6 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     store.migrate().await?;
-    let mode = std::env::args().nth(1).unwrap_or_else(|| "serve".into());
     if mode == "migrate" {
         tracing::info!("migrations applied");
         return Ok(());
@@ -65,6 +70,80 @@ async fn main() -> anyhow::Result<()> {
             .execute(&store.pg)
             .await?;
         tracing::info!(platform_id=%id,"native platform disabled");
+        return Ok(());
+    }
+    if mode == "commercial-dns-test" {
+        let id: uuid::Uuid = std::env::var("COMMERCIAL_WEBSITE_ID")?.parse()?;
+        let mut site:click_store::Website=sqlx::query_as("SELECT id,organization_id,name,origin,collection_id,verification_token,verified_at,active,is_demo FROM websites WHERE id=$1 AND active AND NOT is_demo AND deletion_requested_at IS NULL").bind(id).fetch_optional(&store.pg).await?.ok_or_else(||anyhow::anyhow!("Select an active real website for DNS validation"))?;
+        let origin = url::Url::parse(&site.origin)?;
+        anyhow::ensure!(
+            origin.scheme() == "https"
+                && !matches!(origin.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")),
+            "Select a real public HTTPS origin"
+        );
+        click_server::api::check_website_dns(&site)
+            .await
+            .map_err(|e| anyhow::anyhow!(e.message))?;
+        site.verification_token = click_server::auth::secret();
+        let error = click_server::api::check_website_dns(&site)
+            .await
+            .err()
+            .ok_or_else(|| anyhow::anyhow!("Unexpected mismatched DNS challenge acceptance"))?;
+        anyhow::ensure!(
+            error.message == "DNS verification challenge does not match",
+            "DNS negative check did not prove a mismatched challenge"
+        );
+        println!("Exact public DNS challenge passed and a different challenge was rejected. No website verification state was changed.");
+        return Ok(());
+    }
+    if mode == "commercial-mail-test" {
+        let recipient = std::env::var("COMMERCIAL_TEST_EMAIL").map_err(|_| {
+            anyhow::anyhow!("Configure COMMERCIAL_TEST_EMAIL with an inbox you control")
+        })?;
+        click_server::mail::Mailer::from_env(false)?
+            .send_probe(&recipient)
+            .await?;
+        println!("SMTP accepted the requested probe. Confirm receipt and sender authentication in your inbox; acceptance alone is not inbox evidence.");
+        return Ok(());
+    }
+    if mode == "commercial-check" {
+        let state = AppState::new(store, config)?;
+        let status = click_server::commercial::status(&state)
+            .await
+            .map_err(|e| anyhow::anyhow!(e.message))?;
+        println!("{}", serde_json::to_string_pretty(&status)?);
+        if let Some(provider) = &state.billing.provider {
+            anyhow::ensure!(
+                provider.mode() == "test",
+                "Commercial validation requires Stripe test mode"
+            );
+            let catalog = provider
+                .validate_catalog()
+                .await
+                .map_err(|e| anyhow::anyhow!(e.message))?;
+            println!("{}", serde_json::to_string_pretty(&catalog)?);
+            if let Some(prices) = catalog["prices"].as_array() {
+                for price in prices {
+                    let plan = price["mapping"]
+                        .as_str()
+                        .and_then(|key| key.split_once(':'))
+                        .map(|(plan, _)| plan)
+                        .ok_or_else(|| anyhow::anyhow!("Invalid validated price mapping"))?;
+                    let exists: bool =
+                        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plans WHERE id=$1)")
+                            .bind(plan)
+                            .fetch_one(&state.store.pg)
+                            .await?;
+                    anyhow::ensure!(
+                        exists,
+                        "A configured Stripe price maps to an unknown local plan"
+                    );
+                }
+            }
+            anyhow::ensure!(catalog["portal_features_ready"]==true,"Configure the default Stripe test portal for invoices, payment methods, cancellation and subscription updates");
+        } else {
+            anyhow::bail!("Stripe test configuration is absent; provider validation has not run");
+        }
         return Ok(());
     }
     if mode == "seed-demo" {
@@ -118,9 +197,7 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     if mode != "serve" && mode != "worker" {
-        anyhow::bail!(
-            "Usage: click-server [serve|worker|migrate|requeue-dead|grant-owner <email>]"
-        );
+        anyhow::bail!("Unknown command; run click-server --help");
     }
     let state = AppState::new(store.clone(), config.clone())?;
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);

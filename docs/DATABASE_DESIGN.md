@@ -30,3 +30,11 @@ unknown identity coverage. Migration directories invalidate the compiled
 migration bundle through click-store/build.rs. Retention removes cost dates in
 UTC, skips empty ClickHouse rewrites and uses a database-scoped advisory sweep
 lock; workspace locks still protect each site's acceptance/retention race.
+
+Priority 4 adds PostgreSQL **0012–0013**. `maintenance_checks` stores bounded
+per-operation evidence, last success/failure and generic failure codes, with
+later-started runs winning concurrent updates. Billing checkout rows persist
+exact requests, expiry and acknowledged cancellation. Mail adds delivery/error/
+expiry metadata, an expired state and optional source-token/invitation foreign
+keys. Consumed/revoked sources retire queued bodies; terminal mail and expired
+source metadata have bounded cleanup. No existing migration checksum changes.

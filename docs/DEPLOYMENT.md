@@ -41,15 +41,15 @@ Migrations apply before the listener starts. PostgreSQL SQLx migration history i
 
 ## Transactional mail and billing configuration
 
-Production registration requires configured SMTP; domain creation requires verified email. Set SMTP_HOST, SMTP_PORT (587 STARTTLS or 465 TLS), SMTP_FROM, and optionally both SMTP_USERNAME/SMTP_PASSWORD. Local development instead writes 0600 messages under ignored `.local/mail` (0700); it never pretends to send external email. Account-token queue bodies are cleared after delivery. Monitor pending/dead mail and manage local mailbox retention; automatic local-mail deletion is not implemented.
+Production registration requires configured SMTP; domain creation requires verified email. Set SMTP_HOST, SMTP_PORT (587 STARTTLS or 465 TLS), SMTP_FROM, and optionally both SMTP_USERNAME/SMTP_PASSWORD. Without SMTP, local development writes 0600 messages under ignored `.local/mail` (0700); it never pretends to send external email. Account-token queue bodies are cleared after delivery. Monitor pending/dead mail and manage local mailbox retention; automatic local-mail deletion is not implemented.
 
-Stripe configuration: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICES_JSON such as `{"pro:monthly":"price_...","pro:annual":"price_..."}`. Configure the provider webhook for checkout.session.completed and customer.subscription.created/updated/deleted at `/v1/billing/webhooks/stripe`. Keep test/live modes consistent. Customer owners use Billing & usage in settings; platform manual grants cannot replace a provider-linked subscription. Verify real checkout, portal, cancellation, failed payment and webhook redelivery in the operator's Stripe test account before launch. No provider credentials were supplied or real payments exercised here.
+Stripe configuration: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICES_JSON such as `{"pro:monthly":"price_...","pro:annual":"price_..."}`. Configure the provider webhook for checkout.session.completed and customer.subscription.created/updated/deleted at `/v1/billing/webhooks/stripe`. Keep test/live modes consistent. Customer owners use Billing & usage in settings; platform manual grants cannot replace a provider-linked subscription. Verify real checkout, portal, cancellation, failed payment and webhook redelivery in the operator's Stripe test account before launch. Real Stripe test-mode and controlled-inbox SMTP checks are recorded in COMMERCIAL_VALIDATION.md. Test validation does not configure live billing or production sender/domain settings.
 
 The privacy worker applies the smaller of website/plan retention to real websites in hourly buckets, discards expired pending payloads before replay, deletes expired exports and sessions, and processes durable data deletion. Demonstration websites are excluded from retention policy changes and live collection. Retention relies on a running worker; monitor failures.
 
 ## Owner account recovery
 
-Grant access only through `click-server grant-owner <existing-account-email>`, then sign in at `/owner/signin`. Open **Account & security** to enroll an authenticator and store the one-use recovery codes privately. Maintain a reliable, synchronized system clock. Configure and verify SMTP before depending on `/owner/forgot-password`; local development writes the recovery link to `.local/mail` instead of sending email. Email recovery preserves MFA. Losing both the authenticator and all recovery codes requires an operator-assisted identity/recovery process, not a customer reset link. The database contains authenticator shared secrets; secure its access, storage and backups.
+Grant access only through `click-server grant-owner <existing-account-email>`, then sign in at `/owner/signin`. Open **Account & security** to enroll an authenticator and store the one-use recovery codes privately. Maintain a reliable, synchronized system clock. Configure and verify SMTP before depending on `/owner/forgot-password`; local development without SMTP writes the recovery link to `.local/mail` instead of sending email. Email recovery preserves MFA. Losing both the authenticator and all recovery codes requires an operator-assisted identity/recovery process, not a customer reset link. The database contains authenticator shared secrets; secure its access, storage and backups.
 
 Team invitations use the same transactional mail outbox and transport. The UI says when a message is queued or when a link must be shared manually. Monitor delivery failures before assuming that an invite reached an inbox.
 
@@ -60,9 +60,8 @@ platform via the operator CLI and keep its credential only in private platform
 configuration; see GHOST_INTEGRATION.md. Restart hosting after platform key or
 plan-map changes to reconcile new revisions. Back up mapping/tombstone state
 with the control DB. A credential rotation/disconnect must be acknowledged;
-retry uncertain operations using the persisted replacement/version. Public TLS,
-DNS, real payment provider/SMTP delivery and independent SSO review remain
-external validation gates.
+retry uncertain operations using the persisted replacement/version. Public TLS/DNS and independent SSO review remain external validation gates;
+real test-mode payment and SMTP evidence is recorded in COMMERCIAL_VALIDATION.md.
 
 
 Priority 3 upgrades apply PostgreSQL 0011 and ClickHouse 0003 before the
@@ -76,3 +75,25 @@ Retention sweeps share a PostgreSQL advisory lock across processes and check
 for expired rows before scheduling ClickHouse mutations. Empty sweeps no
 longer rewrite shared aggregate parts. This avoids redundant local work;
 distributed abuse/report budgets remain a separate release gate.
+
+Priority 4 commercial setup and the test-only isolated provider workflow are in
+[COMMERCIAL_VALIDATION.md](COMMERCIAL_VALIDATION.md). Deploy additive PostgreSQL
+0012–0013 with the corresponding binary. Real Stripe price/portal checks, SMTP
+acceptance plus inbox authentication, and public TXT/HTTPS evidence must be
+recorded for your deployment; local fixtures never substitute for them. Test
+credentials are optional for normal local operation. Live Stripe keys are
+refused outside APP_ENV=production, and partial Stripe configuration fails
+startup rather than silently selecting local test billing. Keep fixture runs
+on explicit local mail/no-provider services; the external helper alone uses
+the configured real services and operator inbox in isolated stores.
+
+
+The operator explicitly deferred deployment-domain setup on 2026-11-10; no
+connected Hostinger domain is used for Vuuut Click. Keep public TXT/TLS and
+sender SPF/DKIM/DMARC/bounce/abuse checks open until that domain is configured.
+For development SMTP, `ALLOW_LOCALHOST=true` requires `COMMERCIAL_TEST_EMAIL`
+and restricts delivery to that exact controlled inbox. Fixture browser servers
+must omit STRIPE_/SMTP_/COMMERCIAL_ settings; Rust integration fixtures explicitly
+inject local services. A real test-mode main server must have a matching active
+Stripe listener forwarding to its own webhook endpoint, rather than an expired
+isolated QA port.

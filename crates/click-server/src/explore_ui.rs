@@ -2,6 +2,15 @@
 use crate::{analytics, dashboard::esc, explore, AppResult};
 use click_store::{Store, Website};
 fn panel(title: &str, headers: &[&str], rows: &str, note: &str) -> String {
+    panel_with_controls(title, headers, rows, note, "")
+}
+fn panel_with_controls(
+    title: &str,
+    headers: &[&str],
+    rows: &str,
+    note: &str,
+    controls: &str,
+) -> String {
     let head = headers
         .iter()
         .map(|h| format!("<th scope=\"col\">{}</th>", esc(h)))
@@ -10,7 +19,15 @@ fn panel(title: &str, headers: &[&str], rows: &str, note: &str) -> String {
         "<tr><td colspan=\"{}\">No recorded measurements in this period.</td></tr>",
         headers.len()
     );
-    format!("<section class=\"panel\"><div class=\"panel-heading\"><h2>{}</h2></div><div class=\"owner-table\"><table><thead><tr>{head}</tr></thead><tbody>{}</tbody></table></div><p class=\"muted\">{}</p></section>",esc(title),if rows.is_empty(){&empty}else{rows},esc(note))
+    let region = if controls.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " role=\"region\" aria-label=\"{}\" tabindex=\"0\"",
+            esc(title)
+        )
+    };
+    format!("<section class=\"panel\"><div class=\"panel-heading\"><h2>{}</h2></div>{controls}<div class=\"owner-table\"{region}><table><thead><tr>{head}</tr></thead><tbody>{}</tbody></table></div><p class=\"muted\">{}</p></section>",esc(title),if rows.is_empty(){&empty}else{rows},esc(note))
 }
 fn cell(value: impl std::fmt::Display) -> String {
     format!("<td>{}</td>", esc(&value.to_string()))
@@ -311,6 +328,6 @@ pub async fn events(
             cell(r.visitors)
         ));
     }
-    let form=format!("<form class=\"settings-form\" action=\"/dashboard\" method=\"get\"><input type=\"hidden\" name=\"site\" value=\"{}\"><input type=\"hidden\" name=\"view\" value=\"events\"><input type=\"hidden\" name=\"days\" value=\"{days}\"><label>Filter event<input name=\"event\" maxlength=\"64\" value=\"{}\"></label><label>Filter path<input name=\"path\" maxlength=\"1024\" value=\"{}\"></label><label>Filter campaign<input name=\"campaign\" maxlength=\"120\" value=\"{}\"></label><button class=\"btn outlined small\">Filter events</button></form>",site.id,esc(filter.event.as_deref().unwrap_or("")),esc(filter.path.as_deref().unwrap_or("")),esc(filter.campaign.as_deref().unwrap_or("")));
-    Ok(form+&panel("Event context and filters",&["Event","Path","Campaign","Completions","Sessions","Visitor IDs"],&rows,"Top 100 matching event/path/campaign groups. Blank event filters show custom/backend events, excluding pageviews and automatic telemetry. Only minimized path and campaign context is available; no form values or arbitrary query parameters are collected."))
+    let form=format!("<form class=\"event-filters\" action=\"/dashboard\" method=\"get\"><input type=\"hidden\" name=\"site\" value=\"{}\"><input type=\"hidden\" name=\"view\" value=\"events\"><input type=\"hidden\" name=\"days\" value=\"{days}\"><label>Filter event<input name=\"event\" maxlength=\"64\" value=\"{}\"></label><label>Filter path<input name=\"path\" maxlength=\"1024\" value=\"{}\"></label><label>Filter campaign<input name=\"campaign\" maxlength=\"120\" value=\"{}\"></label><button class=\"btn outlined small\">Filter events</button></form>",site.id,esc(filter.event.as_deref().unwrap_or("")),esc(filter.path.as_deref().unwrap_or("")),esc(filter.campaign.as_deref().unwrap_or("")));
+    Ok(format!("<div class=\"event-context\">{}</div>", panel_with_controls("Event context and filters",&["Event","Path","Campaign","Completions","Sessions","Visitor IDs"],&rows,"Top 100 matching event/path/campaign groups. Blank event filters show custom/backend events, excluding pageviews and automatic telemetry. Only minimized path and campaign context is available; no form values or arbitrary query parameters are collected.", &form)))
 }

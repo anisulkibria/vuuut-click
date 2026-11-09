@@ -152,3 +152,35 @@ additive ClickHouse fields; older data stays unclassified. CSV exports include
 these minimized fields and opaque newsletter edition keys, excluding recipient
 hashes. Periods retain UTC collection-time semantics; ordering/windows use
 validated occurrence time.
+
+## Priority 4 commercial lifecycle
+
+Checkout persists an exact request, has a one-hour provider expiry and allows
+one unexpired selection per workspace. Retries reuse its idempotency key.
+Settings action `cancel_checkout` requires the workspace Owner, exact Origin and
+provider-confirmed expiry before clearing the pending selection. It returns a
+303 to Billing. Current provider subscriptions use the portal; delayed checkout
+notifications cannot replace a different active mapping. Portal authorization
+is rechecked after its provider request. Manual test downgrades reserve pending
+invitation seats and cannot override a hosting/provider plan.
+
+Past-due/unpaid and incomplete/paused states pause collection while billing
+recovery, existing reports/export and deletion remain possible. Authoritative
+cancellation returns to Free and its retention limits. Existing members/sites
+are preserved; adding new ones obeys current limits. No event/return URL clears
+operator suspension. Cancellation of a retired price still reduces entitlements.
+
+`GET /owner/v1/commercial` uses the separate full owner session and returns
+provider modes, durable maintenance timestamps/failure codes and queue counts.
+`GET /owner/commercial` renders those values. `POST /owner/commercial/retry-mail`
+is a form `{id}` with full owner and exact Origin checks; it audits a bounded
+retry of a dead message only while its source link is valid. Bodies/credentials
+never enter these responses. A missing/stale check is not healthy. See the
+[commercial runbook](COMMERCIAL_VALIDATION.md) for real-provider evidence.
+
+
+Billing-inactive collection keeps HTTP 429 for retry-compatible collectors and
+returns `Collection is paused until billing is resolved`. Monthly quota refusal
+remains separate. Retries containing only already accepted IDs still return 202
+with duplicate counts after a downgrade/payment pause, without incrementing
+usage. New events and mixed batches obey current entitlement/quota atomically.

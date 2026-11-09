@@ -1,6 +1,6 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-09 (Asia/Dhaka). The user requested the full **Priority 2: native Vuuut/Vuuut-pro integration**. Priority 2 is complete across the three repositories, verified and running locally. Priority 3 analytics breadth is implemented locally, with one final full-browser rerun pending. The user explicitly requested a pause to commit/push and continue later; resume only when asked. See the latest checkpoint below. Priority 1 remains complete. Production release gates remain separate. Local Click stays on http://localhost:8082; existing credentials/data are preserved.
+Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–3 are complete and verified locally. Priority 4 safeguards are implemented: **47/47 backend checks, 11/11 browser scenarios**, real Stripe test-mode lifecycle/webhooks and controlled-inbox verification/reset/invitation/owner recovery passed. Manual hosted Checkout, portal annual change and period-end cancellation are verified. Isolated QA resources are cleaned up; Priority 4 is complete within the agreed test scope. The user explicitly deferred public-domain setup and excluded all connected Hostinger sites. Current runtime and exact evidence are in the latest Priority 4 section below and docs/COMMERCIAL_VALIDATION.md. Production release gates remain separate. Local Click runs at http://localhost:8082 with verified test Stripe/SMTP; existing credentials/data are preserved. Do not commit or push.
 
 ## What the user is building
 
@@ -242,8 +242,8 @@ On this Mac, use `CHROMIUM_EXECUTABLE_PATH="/Applications/Google Chrome.app/Cont
 
 1. **Finish product hardening around existing workflows — complete locally, 2026-11-08.** Goal/funnel editing/deletion, transactional workspace privilege rechecks, account/password/reset/promotion races, consistent HTML/API validation and overload errors, automatic invitation email queueing, owner profile/password/recovery/MFA UI, per-workspace report budgets and bounded journey aggregation are implemented and verified. Details and limits are in the completion section below. Production SMTP, distributed edge budgets and independent security/MFA review remain release gates under priorities 4–5.
 2. **Native Ghost/Vuuut and Vuuut-pro integration — complete and verified.** All requested components are present in the sibling repositories; see the new native integration section and docs/GHOST_INTEGRATION.md. Never expose platform/integration credentials in browser content.
-3. **Analytics breadth — implemented under Priority 3; final browser rerun pending.** Richer content/acquisition/event reports, opt-in engagement, returning/cohorts and period comparisons, visitor/prefix funnels, newsletter editions, extra attribution dimensions and explicit-cost ROI are implemented. See docs/ANALYTICS_METRICS.md and the completion evidence below.
-4. **Production commercial validation**: operator-configured Stripe test-account checkout/portal/cancel/past-due/webhook scenarios, real SMTP verification/reset delivery and invitation mail, email/DNS/abuse policies, plan/downgrade edge cases, retention fulfillment monitoring. No live charges are authorized by this local project task.
+3. **Analytics breadth — complete and verified under Priority 3.** Richer content/acquisition/event reports, opt-in engagement, returning/cohorts and period comparisons, visitor/prefix funnels, newsletter editions, extra attribution dimensions and explicit-cost ROI are implemented. See docs/ANALYTICS_METRICS.md and the completion evidence below.
+4. **Production commercial validation — complete in agreed test scope.** Test-mode Checkout, real API/webhook replay/renewal failure/recovery/cancellation and controlled-inbox customer/owner mail passed, with safe checkout, mail and fulfillment policies implemented. See the latest evidence below. Public-domain/TLS/sender alignment is explicitly deferred by the user; none of the connected Hostinger sites may be used. No live charges are authorized.
 5. **Operational release gates**: OTel and metrics/dashboards/alerts, distributed edge/request budgets, encrypted off-site backups with cross-store consistency and verified restore drills, dependency/image/license scanning, Linux image/TLS deployment, capacity/load benchmarks at 1M/10M/100M monthly events, independent security review. NATS JetStream is optional only when distributed queue requirements justify it; current PostgreSQL outbox is durable. Keep readiness, retry and dedup behavior through migrations.
 6. **Release/package work**: version/publish signed browser and Rust SDKs, OpenAPI response-schema completeness, operator/admin and migration documentation, CI execution on actual remote and production acceptance evidence. Maintain license notices. Do not assert production-ready until all gates genuinely pass.
 
@@ -485,7 +485,7 @@ Additive schemas: PostgreSQL **0011**, ClickHouse **0003**, CMS SQLite/MySQL
 Old queued payloads retain compatible defaults for the new fields.
 
 Final backend verification: formatting and warnings-denied Click Clippy pass;
-**19 unit tests + 20 real PostgreSQL/ClickHouse integration tests pass** with
+**21 unit tests + 18 real PostgreSQL/ClickHouse integration tests pass** with
 `--include-ignored` (39 total, none ignored). Tests cover period boundaries,
 identity/cohort censoring, engagement dedup, cross-session/prefix funnels,
 newsletter cohort matching, revisions/currency/coverage/roles and privacy.
@@ -516,7 +516,7 @@ remain priorities **4–6**; they are not included in this completion claim.
 All source changes remain uncommitted in the three separate repositories.
 
 
-## User-requested pause — 2026-11-09
+## Historical user-requested pause — 2026-11-09 (resumed below)
 
 The user said: "Implement what you have done/think and pause, I will commit and
 push and work later." Work is paused. No commit or push was made. Do not start
@@ -572,3 +572,365 @@ Review all **three Git repositories** for the user's commit: Click, Vuuut and
 Vuuut-pro. Their native adapters/migrations must move together. Never stage
 `.env`, `.local`, `run/` private configs, SQLite databases, credentials or test
 screenshots. No remote publication or production readiness claim was made.
+
+
+## Priority 3 — final verification after resume, 2026-11-09
+
+The user resumed with "Continue". Priority 3 implementation and local
+verification are now **complete**. The earlier pause and 8/9 browser result are
+historical; this section supersedes their pending-work status.
+
+- The entire **9/9 Playwright suite passed together in 50.0 seconds** against
+  the temporary 8083 server and the real development databases. No heavy builds
+  or separate database suites ran concurrently. The previously failing final
+  comparison request passed, along with the exact engagement timing/SPA split,
+  scroll maximum, identity coverage, consent/DNT, retries, report controls,
+  newsletter/cohort/cost UI, responsive layouts, owner security/session
+  isolation and export-refresh single-job regression. No correctness assertion
+  was relaxed. No new implementation change was needed.
+- Main Click and the temporary test server logged **no errors since their latest
+  restarts**. The earlier total-memory refusal did not recur. This verifies the
+  local workflow under the tested conditions, not production load capacity.
+- Runtime checks passed again: Click **8082** readiness, CMS **1971** and hosting
+  **8080** return 200. All four hosted mappings remain synchronized with no
+  errors. The two active public sites expose consent-required public tracker
+  attributes, omit private credentials and use CMS schema 40. The two suspended
+  sites retain only disabled markers. Hosted engagement/persistent identity
+  remain off. Unauthenticated standalone native Admin returns 401. The main
+  server serves the committed 5,519-byte tracker bundle.
+- Existing backend **39/39**, native bridge **3/3**, CMS headless **73/73**,
+  real MySQL edition/outbox, strict Click Clippy and tracker check/build evidence
+  remains recorded above. No backend/SDK source changed during this resume,
+  so those expensive suites were not repeated unnecessarily.
+- Temporary **8083** was stopped after verification. Main **8082**, standalone
+  CMS **1971** and hosting **8080** remain running with existing accounts/data.
+  The new browser log is ignored `.local/priority3-browser-resumed.log`.
+
+The user committed the Click implementation as `1133ae8` ("analytics breadth done, test pending") before this resume. CMS and hosting adapter/migration
+changes are still uncommitted in their separate repositories; transfer all
+three applications together. This resume updates only Click documentation with
+completion evidence. No commit/push was performed by the agent.
+
+The next planned priority is **4: production commercial validation**, followed
+by operations and release/package gates. Those require their own work and,
+where applicable, actual provider/deployment configuration; they are not part
+of this Priority 3 completion. No production-readiness claim is made.
+
+
+## Customer Events layout and typography — 2026-11-09
+
+At the user's request, fixed `/dashboard?view=events` and slightly increased
+text throughout customer report, advanced analytics, setup and settings panels.
+The customer shell now has a scoped `customer-console` wrapper. Table rows are
+13px (previously 11px), headers 12px (previously 9px), supporting text 12px,
+controls 13px and panel headings 20px. Existing owner typography is preserved.
+
+The Events filter form had been a direct child of the two-column summary grid,
+stretching to the summary card's height and pushing the detailed table into a
+half-width column. It now sits inside a full-width event detail panel. The
+summary uses the available width, goals appear before the detailed results,
+and the long result table scrolls within a 560px region with sticky headers
+and keyboard access. Goal action cells retain proper table-cell layout, and
+forms adapt to tablet/phone widths without document overflow.
+
+Verified computed typography and overflow on 20 customer screens at 1440px,
+768px and 390px, including the actual requested demo page. Keyboard scrolling,
+filter alignment, full-width panels and goal ordering pass; desktop, phone and
+dark screenshots were inspected. The existing nine-scenario Playwright suite
+passes together, including goal editing/removal and event filtering. Formatting,
+warnings-denied Clippy and all 39 backend checks pass across the workspace run
+and focused reruns. The initial full database run hit ClickHouse's total-memory
+limit during demo seeding; that single scenario passed on its focused rerun.
+The workspace library run also passes all 21 unit tests. No assertions changed.
+The earlier Priority 3 unit/integration split was corrected above: 21 unit and
+18 real-store scenarios, still 39 total.
+
+The rebuilt application is running on **8082** with the new stylesheet. Temporary
+8083 was stopped after browser verification. No database migration, tracker
+change, credential change, commit or push was needed for this design fix.
+Private visual-check scripts/screenshots/logs remain under ignored `.local`.
+
+
+## Priority 4 — implementation in progress, 2026-11-09
+
+The user requested completion of Priority 4 (production commercial validation).
+Work is authorized and active; no commit/push is requested. Preserve the Events
+layout/customer typography improvements above. The operator said they will add
+real Stripe test/SMTP configuration to ignored `.env`; the last presence check
+still found those settings absent. Never print secrets or treat local mocks as
+real-provider evidence. The required real scenarios and exact policies are in
+[docs/COMMERCIAL_VALIDATION.md](docs/COMMERCIAL_VALIDATION.md).
+
+Implemented locally so far:
+
+- Additive PG 0012/0013: exact pending checkout snapshots/expiry/cancellation,
+  mail expiry/delivery/error/source metadata and durable maintenance checks.
+- One pending checkout per workspace, exact request/idempotency replay,
+  acknowledged cancellation and later-event/current-customer mapping protection.
+  Portal ownership is checked again after network I/O. Unknown/duplicate/invalid
+  price mappings fail configuration; live keys are refused outside production.
+  Real catalog preflight checks pinned Stripe price/portal configuration.
+- Test downgrades include pending invitation seat reservations and refuse native
+  or paid-provider overrides. Active/trialing, past-due/unpaid, paused/incomplete
+  and cancellation policies are explicit. Cancelled retired prices still reduce
+  entitlements. Billing never clears an operator suspension.
+- Accepted-ID-only retries remain acknowledged after payment pause/downgrade,
+  without new usage; newly inserted events remain atomically quota/entitlement
+  guarded. Inactive billing keeps retry-compatible 429 with a distinct reason.
+- Mail construction/SMTP/file errors all consume bounded attempts. Queue lifetime
+  matches source tokens/invitations; consumed/revoked/expired links clear bodies
+  and cannot be retried. Account/owner request cooldown includes consumed tokens.
+  Terminal mail and expired token/invitation metadata have bounded cleanup.
+- Owner Commercial status page/API show worker success/failure/staleness and
+  queues, plus audited retry of valid dead mail. No bodies or credentials enter
+  its responses. Skipped retention locks are not successful sweeps.
+- CLI `commercial-check`, `commercial-mail-test`, `commercial-dns-test`, and
+  configuration-free `--help`. Isolated Python helper prepares real-service QA
+  stores/app on 8084, queues only to COMMERCIAL_TEST_EMAIL, supports separate
+  owner recovery and checks its owned process/database namespace on cleanup.
+  Tests are explicitly constructed with local mail/no provider so operator
+  SMTP/Stripe credentials cannot accidentally affect fixture accounts.
+
+Verification before runtime deployment: **46/46 Rust tests passed**, including
+all ignored real-store tests with `--test-threads=1` (23 unit + 23 PostgreSQL/
+ClickHouse integration scenarios). Strict Clippy passed. The new five commercial
+integration scenarios cover exact retries/cancellation/late mapping, billing
+status/quota replay, portal revocation race, mail expiry/dead/retry/cooldown,
+actual retention outage/recovery/skipped-lock evidence, invitation reservations
+and native plan protection. Two adapter unit tests exercise a real local HTTP
+fixture for Stripe wire parameters, pinned version, signatures/modes and catalog
+checks. Three Python safety checks pass. Earlier overlapping build/test attempts
+hit a ClickHouse query timeout; use the clean `.local/priority4-backend-verified.log`
+for the serial successful evidence. No assertions were weakened.
+
+Private pre-migration PG archive `.local/priority4-before-control.dump` (0600)
+was created with the matching PostgreSQL 17 container client; its archive listing
+is readable. The host's pg_dump 14 cannot dump this server. This is a local
+control-store snapshot, **not** the encrypted cross-store backup/restore gate.
+Runtime rebuild/restart and the ten browser scenarios (including owner commercial
+status) are still in progress at this checkpoint. The normal local servers must
+use local mail/no payment provider during fixture verification. Actual provider
+configuration is used only by the explicit isolated commercial helper/commands.
+Real Stripe Checkout/portal/past-due and SMTP inbox/public DNS/TLS evidence are
+still pending and cannot be called complete until actually exercised.
+
+
+### Priority 4 continuation: verified credentials and external QA
+
+The user responded "add it yourself" to the configuration request. Existing
+private sibling configuration was inspected without printing secret values.
+A CMS Stripe **test** key authenticated against Stripe; configured Gmail SMTP
+credentials authenticated with TLS, and read-only IMAP inbox access succeeded.
+These were used to create a dedicated Stripe **test-only** Vuuut Click product,
+$1 monthly/$10 annual validation prices and a separate portal configuration.
+These are validation fixtures, not approved commercial launch prices. Original
+shared Stripe default portal settings were not changed.
+
+Verified values were added atomically to ignored `.env` (0600), with a private
+backup `.local/env-before-priority4`. `STRIPE_PORTAL_CONFIGURATION` selects the
+dedicated portal. Secret discovery caches are private `.local/discovered-*.json`.
+A Stripe test listener runs detached, forwarding the four configured snapshot
+event types to **8084**; its identity is in `.local/priority4-stripe-listener.json`
+and private log contains its signing secret. Never print that log or `.env`.
+The optional Stripe plugin was discovered/suggested before local credentials
+were found; it was not connected and is no longer needed for these HTTP tests.
+
+The external helper has a live isolated app on **8084**, with manifest
+`.local/commercial-validation/click_commercial_f41a8cfaccf94498a9fc7cb28e1c9833/run.json`.
+Generated customer credentials are in that directory's private credentials.json.
+**Real SMTP inbox receipt + link consumption passed** for verification, customer
+reset and invitation. Links were single-use and reset revoked the prior session.
+Evidence is `.local/priority4-real-mail-evidence.json`; private driver is
+`.local/verify-priority4-mail-flows.py`. Do not re-run it blindly: links are now
+consumed. Sender-auth flag extraction in that driver uses over-escaped regexes;
+re-read only the scoped messages' headers and update evidence without reusing
+links. IMAP access must remain read-only and BODY.PEEK; never log unrelated mail,
+message bodies, raw headers/IPs or tokens. Owner reset is still pending **after**
+customer billing validation (its helper promotes only the isolated QA account).
+
+Real Stripe price/portal preflight passed (2 prices, test mode, features ready).
+A real pending Checkout was created/retried idempotently and mapped in the QA DB,
+but hosted browser navigation is blocked. Latest diagnosis: browser logs show
+net::ERR_ABORTED, remain on the app Billing page; the app CSP uses **form-action
+'self'**, which blocks the cross-origin 303 from its billing forms. Next fix:
+allow ONLY checkout.stripe.com and billing.stripe.com as form-action targets on
+/settings and /settings/action documents, preserve all other CSP directives and
+other pages. Add a browser regression using actual settings CSP + intercepted
+303/allowed-host responses, and prove a lookalike/unapproved host stays blocked.
+Then resume real hosted Checkout UI (normal test-card flow; no CAPTCHA bypass).
+Private inspector `.local/inspect-priority4-checkout.mjs` and logs are available;
+its early over-escaped hostname regex was removed during diagnostics. Do not
+print full external browser logs/URLs; mask the controlled inbox in screenshots.
+No test payment has completed yet. Checkout session URL/state is private; prefer
+retrieving its stored `billing_checkouts.url` from the isolated QA DB when resuming.
+
+Query resource investigation: last Rust suite passed **47/47** (24 unit + 23
+real-store scenarios), strict Clippy passed, build current. Local SMTP now limits
+delivery to COMMERCIAL_TEST_EMAIL when ALLOW_LOCALHOST=true, preventing fixtures
+from sending to third-party addresses. The store client also caps query/FINAL
+reader threads at 2. Initial full browsers still hit transient total-memory
+refusals despite small (<40 MiB) query peaks. ClickHouse allocator stats reported
+~10 GiB resident on this 4 GiB Docker VM with heavy retained allocation. The
+persisted ClickHouse container was gracefully restarted (no volume/table reset),
+and main/test apps restarted. The final full browser suite then passed
+**10/10 in 49.1 seconds**, log `.local/priority4-browser-final.log`. Keep these
+verified results distinct from older 8/10 failures. Production memory/capacity
+benchmarks remain Priority 5. The user data and original passwords are unchanged.
+Main 8082 and temporary 8083 currently run local-file/no-provider configurations
+through `.local/restart-priority4-local.py`; it strips real-service variables
+from child environments only. QA 8084 uses the verified real test settings.
+At final handoff, either switch the real Stripe listener to 8082 and restart the
+main app with matching test settings after QA cleanup, or clearly keep/configure
+separate forwarding targets. Do not leave main billing enabled with events
+forwarded solely to an absent 8084 server. Original CMS 1971/hosting 8080 and all
+four mappings were verified healthy after the schema upgrade; CMS schema 40,
+hosting 5, Click PG 13/CH 3. Remaining work is the real billing/owner-mail scenarios,
+CSP fix, final checks/docs and external-QA cleanup/reviewable runtime.
+
+
+### Priority 4 final verification and active manual test — 2026-11-10
+
+User resumed with "Continue". Implemented the settings-only CSP correction:
+form-action permits self plus exact HTTPS checkout.stripe.com/billing.stripe.com;
+all other pages remain self-only. Real Checkout and portal navigation now work.
+Browser regression intercepts only provider destinations at Chromium Fetch,
+drives actual settings forms, and proves a lookalike host is CSP-blocked before
+any request. Ordinary Playwright routing did not intercept the post-303 target;
+that fixture error was corrected without relaxing the security assertions.
+
+Current verification: formatting/strict Clippy; **47/47 backend tests** (24 unit,
+23 real-store, none skipped); TypeScript check; **11/11 browser scenarios together
+in 52.8 seconds**; three Python guard tests, including owner-only config refusal.
+Logs: `.local/priority4-csp-{clippy,backend,build}.log`,
+`.local/priority4-browser-complete.log`, `.local/priority4-helper-final.log`.
+Commercial phone screenshot inspected. The first browser attempt hit a real
+ClickHouse total-memory refusal plus the redirect-fixture issue. Graceful CH
+restart retained all stores; final suite passed unchanged. Retention later
+recorded a transient memory refusal and automatically recovered on the next
+sweep; all four maintenance checks were healthy afterward. Keep production
+resource sizing/soak/load checks under Priority 5, not an asserted pass here.
+
+Actual provider evidence (all private `.local/priority4-*.json`):
+- Real Stripe catalog: two valid test recurring prices; selected custom portal
+  features ready. Real test-clock paid subscription, exact signed-event replay
+  (one ledger row, no usage increase), genuine held older event after annual
+  change, failed renewal (new events429, accepted-ID retries202), paid recovery,
+  scheduled cancellation retaining access, clock-driven Free downgrade and
+  incomplete initial-payment refusal all passed. Dedicated generated QA mapping
+  for API lifecycle is explicit; it is not fabricated Checkout evidence.
+- Hosted Checkout **was completed manually by the user**. One completed Checkout,
+  real paid test invoice and Pro/monthly were independently observed. Real
+  portal navigation from the app passed; Update subscription and Cancel
+  subscription controls were observed. User needed help finding the portal;
+  opened it directly in a new foreground Chrome window. User said "I have seen
+  those 2"; do not interpret that as submitted mutations. Last provider read
+  still monthly, cancel_at_period_end=false. An async question asks them to
+  submit annual change + period-end cancellation or explicitly defer them.
+- Actual inbox verification/customer reset/invitation passed link consumption,
+  replay refusal and customer session revocation. Separate owner-only helper
+  (`setup --port 8086 --owner-only`) passed owner reset receipt/consumption/replay,
+  old-session revocation and fresh owner login without touching manual QA user.
+  Its app/stores/credentials were cleaned up. All messages INBOX; read-only IMAP
+  and BODY.PEEK. Same-inbox Gmail headers contain no Authentication-Results or
+  ARC results: SPF/DKIM/DMARC are unreported, not failed or proven. Evidence was
+  corrected from false booleans to null/unreported values.
+- User explicitly: "We will add the domain later, none of these" regarding the
+  three connected Hostinger sites. Do not use any of them or ask again now.
+  Public TXT/TLS/exact-origin/sender-alignment/abuse deployment checks deferred.
+
+Runtime now: **main8082 uses real Stripe TEST + SMTP**, `.env`0600 matches its
+separate active listener in `.local/priority4-main-stripe-listener.json` forwarding
+DIRECTLY to8082. Main real preflight passed and actual signed test callback200
+was observed. Temporary browser8083 stopped. Current public helper fixture tests
+must strip Stripe/SMTP/COMMERCIAL variables before starting fixture servers.
+The independent **manual QA8084 remains active**, original manifest:
+`.local/commercial-validation/click_commercial_f41a8cfaccf94498a9fc7cb28e1c9833/run.json`.
+Its original listener `.local/priority4-stripe-listener.json` forwards to the
+scoped evidence proxy8085 (`.local/priority4-webhook-proxy.json`), then QA8084.
+Do not stop them or remove its credentials until manual testing finishes or
+is explicitly deferred. Two listeners deliberately handle isolated/main apps;
+unknown subscription mappings are ignored after signature verification.
+
+The 2 API subscriptions are terminal, their clock and customers were removed
+with exact ownership/mode checks (`.local/priority4-api-cleanup-evidence.json`).
+DELETE of an incomplete Stripe subscription returns incomplete_expired, which
+is correctly treated as terminal/Free; the first private cleanup assertion was
+corrected for that provider state. Primary manual Checkout subscription is NOT
+part of that API scope and remains untouched. Dedicated test product/prices/
+portal are retained for main app use, not approved commercial launch pricing.
+Original shared/default portal and live objects remain unchanged.
+
+Manual helpers: `.local/inspect-priority4-manual-state.py` safely prints only
+plan/period/cancel flag/invoice count. `.local/priority4-manual-portal.mjs` keeps
+user's current Chrome portal window open; manifest has its node PID, check
+command identity before stopping. Old completed Checkout window was closed to
+reduce memory. Read-only portal inspector `.local/inspect-priority4-portal.mjs`
+never submits protected controls. Do not automate protected Stripe payment/
+subscription confirmation UI. Await user submissions or explicit deferral.
+
+Next: verify portal annual/cancellation against real app/provider, then cancel
+ONLY the manual QA test subscription and expire its remaining open Checkouts;
+cleanup QA8084 using the exact helper manifest, stop its owned listener/proxy,
+retain main listener8082. Archive QA listener identity and make the main listener
+canonical if useful. Close only our remaining test Chrome window. Update final
+README/plan/runbook/handoff to exact observed evidence and cleanup. No commit,
+push, live charge or public deployment. A credential scan found zero known key/
+password values in reviewable changes; .env/.local remain ignored. Removed only
+regenerable Rust incremental cache after confirming no compiler active to free
+~2GB; sources/binaries/stores preserved, available disk about2.5GB afterward.
+
+
+### Priority 4 COMPLETE in agreed test scope — final handoff, 2026-11-10
+
+The user submitted both portal changes and said "I have done both". Independent
+reads confirmed **Pro/active, annual/yearly interval, cancel_at_period_end=true,
+one completed Checkout and two paid TEST invoices**. Evidence:
+`.local/priority4-manual-stripe-evidence.json` and
+`.local/priority4-manual-completion-evidence.json`. The earlier pending notes are
+historical and superseded by this completion record. Protected payment/portal
+confirmation controls were operated by the user, never automated.
+
+Cleanup cancelled ONLY the isolated manual QA subscription, waited for its real
+signed deletion webhook to return the QA workspace to Free, and deleted its
+Stripe test customer. The separate two API fixtures were already terminal and
+their clock/customers deleted. Original/shared/live objects were untouched.
+Both generated commercial QA stores and their private credentials were removed;
+QA8084, proxy8085, owner-only8086 and browser test8083 are stopped. Only controlled
+test Chrome windows were closed. Private evidence/logs remain ignored.
+
+**Main8082 remains running with actual Stripe TEST + controlled-inbox SMTP**.
+The canonical `.local/priority4-stripe-listener.json` and
+`.local/priority4-main-stripe-listener.json` refer to the SAME active process,
+forwarding DIRECTLY to http://localhost:8082/v1/billing/webhooks/stripe. The old
+QA listener identity is archived in
+`.local/priority4-qa-stripe-listener-completed.json` and is stopped. Never print
+listener logs: they contain the signing secret. Main private `.env`0600 matches
+its listener. Dedicated test product/prices/custom portal remain configured for
+main local use; no shared default portal or live object was modified.
+
+Final verification remains **47/47 backend** (all real-store scenarios included),
+**11/11 browser**, strict Clippy/formatting, TS check, three helper guards and
+clean Git diff checks. Main real preflight: mode=test, two valid prices, selected
+portal/features ready; actual main signed callback200. Original customer and
+owner credentials still sign in, independent sessions remain valid and the
+existing Events page200. CMS1971 and hosting with Host pro.localhost:8080 return
+200; integration mappings remain2active/2suspended. All four main fulfillment
+checks had recent successful runs at handoff; a transient CH memory refusal
+recovered automatically. Sustained Docker/production sizing remains P5.
+
+User deferred domain setup explicitly; none of the connected Hostinger sites
+may be used. Public TXT/TLS/exact-origin/sender SPF/DKIM/DMARC and bounce/abuse
+contact checks remain for the eventual deployment. Same-inbox Gmail receipt is
+real evidence of the four account mail flows, but headers did not report sender
+authentication. No public domain change, live charge, commit or push occurred.
+
+Next priority is **5: operational release gates**, when the user requests it.
+Do not reopen completed P4 code or call the entire original project production
+ready. See docs/COMMERCIAL_VALIDATION.md for exact evidence and limitations.
+For future fixture browser runs, strip STRIPE_/SMTP_/COMMERCIAL_ variables from
+that server's child environment and use a separate port; Rust integration tests
+explicitly construct local mail/no-provider services. Current main must retain
+its matching active test listener when exercising real billing. A machine
+restart requires restarting that listener (or removing all Stripe configuration
+until it is available); run.sh does not create an external webhook endpoint.
+No remaining P4 implementation work is pending after these accepted deferrals.

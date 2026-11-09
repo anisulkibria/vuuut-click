@@ -400,6 +400,10 @@ pub async fn collect(
             AcceptError::Disabled => {
                 ApiError::forbidden("Website collection is paused or disabled")
             }
+            AcceptError::BillingPaused => ApiError {
+                status: StatusCode::TOO_MANY_REQUESTS,
+                message: "Collection is paused until billing is resolved",
+            },
             AcceptError::Quota => ApiError {
                 status: StatusCode::TOO_MANY_REQUESTS,
                 message: "Monthly event allowance reached",

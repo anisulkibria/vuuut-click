@@ -550,7 +550,7 @@ pub async fn action(
         "create_key" | "rotate_key" | "revoke_key" => "keys",
         "retention" | "export" | "delete_website" => "privacy",
         "profile" | "password" | "other_sessions" | "verify_email" => "account",
-        "checkout" | "billing_portal" | "billing_test" => "billing",
+        "checkout" | "billing_portal" | "billing_test" | "cancel_checkout" => "billing",
         _ => "workspaces",
     };
     let fallback = SettingsQuery {
@@ -785,6 +785,12 @@ async fn apply_action(
         "checkout" => {
             let url = crate::billing::checkout(&s, &h, id(org)?, &require(&input.value)?).await?;
             return Ok(Redirect::to(&url).into_response());
+        }
+        "cancel_checkout" => {
+            crate::billing::cancel_checkout(&s, &h, id(org)?).await?;
+            return Ok(
+                Redirect::to(&format!("/settings?tab=billing&org={}", id(org)?)).into_response(),
+            );
         }
         "billing_portal" => {
             let url = crate::billing::portal(&s, &h, id(org)?).await?;

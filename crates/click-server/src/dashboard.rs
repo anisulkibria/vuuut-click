@@ -156,7 +156,7 @@ pub(crate) fn shell(
             logout: "/auth/logout",
             logout_label: "Sign out",
         },
-        body,
+        format!(r#"<div class="customer-console">{body}</div>"#),
     )
 }
 fn auth_page(h: &HeaderMap, signup: bool, error: Option<&str>) -> Html<String> {
@@ -489,24 +489,24 @@ pub async fn overview(
         }
         _ => {}
     }
-    if view == "events" {
-        panels.push_str(
-            &crate::explore_ui::events(
-                &s.store,
-                &site,
-                start,
-                end,
-                &crate::explore::EventQuery {
-                    days: Some(days),
-                    event: q.event,
-                    path: q.path,
-                    campaign: q.campaign,
-                },
-                days,
-            )
-            .await?,
-        );
-    }
+    let event_context = if view == "events" {
+        crate::explore_ui::events(
+            &s.store,
+            &site,
+            start,
+            end,
+            &crate::explore::EventQuery {
+                days: Some(days),
+                event: q.event,
+                path: q.path,
+                campaign: q.campaign,
+            },
+            days,
+        )
+        .await?
+    } else {
+        String::new()
+    };
     let mut goals = String::new();
     if view == "events" {
         let rows: Vec<api::Goal> = sqlx::query_as(
@@ -571,7 +571,7 @@ pub async fn overview(
             String::new()
         };
         goals = format!(
-            r#"<section class="panel"><div class="panel-heading"><h2>Your goals</h2><span class="pill">Custom events</span></div><div class="owner-table"><table><thead><tr><th>Goal</th><th>Event</th><th class="number">Completions</th><th>Converting sessions</th><th>Session conversion rate</th>{actions_header}</tr></thead><tbody>{goals}</tbody></table></div>{form}<p class="muted">Completions count accepted event IDs. Session rates count distinct associated sessions with a pageview in this period; unmatched backend facts do not imply browser association. Trigger an event with <code>vuuutClick.track('newsletter_signup')</code>.</p></section>"#
+            r#"<section class="panel goals-panel"><div class="panel-heading"><h2>Your goals</h2><span class="pill">Custom events</span></div><div class="owner-table"><table><thead><tr><th>Goal</th><th>Event</th><th class="number">Completions</th><th>Converting sessions</th><th>Session conversion rate</th>{actions_header}</tr></thead><tbody>{goals}</tbody></table></div>{form}<p class="muted">Completions count accepted event IDs. Session rates count distinct associated sessions with a pageview in this period; unmatched backend facts do not imply browser association. Trigger an event with <code>vuuutClick.track('newsletter_signup')</code>.</p></section>"#
         );
     }
     let geo = if site.is_demo {
@@ -581,8 +581,13 @@ pub async fn overview(
     } else {
         "GeoIP not configured · countries appear as Unknown"
     };
+    let report_class = if view == "events" {
+        " events-report"
+    } else {
+        ""
+    };
     let body = format!(
-        r#"<header class="topbar"><div class="breadcrumb">Your workspace <span>/</span> Analytics</div><span class="status"><span class="tiny-dot"></span> {verified}</span></header><div class="page"><div class="page-heading"><div><span class="eyebrow">A LITTLE INSIGHT. A LOT OF POSSIBILITY.</span><h1>{title}</h1><p>A thoughtful look at the people discovering {}.</p></div><a class="btn outlined" href="/dashboard?site={id}&days={days}&view={view}">↻ Refresh</a></div>{banner}<div class="toolbar"><form method="get" action="/dashboard"><input type="hidden" name="view" value="{view}"><label class="sr-only" for="website">Website</label><select id="website" name="site">{options}</select><label class="sr-only" for="period">Time period</label><select id="period" name="days">{ranges}</select><button class="btn small">Apply</button></form><span class="muted">UTC · {} – {}</span></div>{metrics}{chart}<div class="panel-grid">{panels}</div>{goals}<footer class="page-footer"><span><span class="tiny-dot"></span> Real data. A little more understanding.</span><span>{geo}</span></footer></div>"#,
+        r#"<header class="topbar"><div class="breadcrumb">Your workspace <span>/</span> Analytics</div><span class="status"><span class="tiny-dot"></span> {verified}</span></header><div class="page{report_class}"><div class="page-heading"><div><span class="eyebrow">A LITTLE INSIGHT. A LOT OF POSSIBILITY.</span><h1>{title}</h1><p>A thoughtful look at the people discovering {}.</p></div><a class="btn outlined" href="/dashboard?site={id}&days={days}&view={view}">↻ Refresh</a></div>{banner}<div class="toolbar"><form method="get" action="/dashboard"><input type="hidden" name="view" value="{view}"><label class="sr-only" for="website">Website</label><select id="website" name="site">{options}</select><label class="sr-only" for="period">Time period</label><select id="period" name="days">{ranges}</select><button class="btn small">Apply</button></form><span class="muted">UTC · {} – {}</span></div>{metrics}{chart}<div class="panel-grid">{panels}</div>{goals}{event_context}<footer class="page-footer"><span><span class="tiny-dot"></span> Real data. A little more understanding.</span><span>{geo}</span></footer></div>"#,
         esc(&site.name),
         (Utc::now().date_naive() - Duration::days(days as i64 - 1)).format("%d %b"),
         Utc::now().format("%d %b %Y")

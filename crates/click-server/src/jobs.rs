@@ -423,13 +423,21 @@ pub async fn process_deletion(store: &Store) -> anyhow::Result<()> {
     Ok(())
 }
 pub async fn enforce_retention(store: &Store) -> anyhow::Result<()> {
+    let started = chrono::Utc::now();
+    let result = enforce_retention_work(store).await;
+    if !matches!(result, Ok(false)) {
+        crate::commercial::record(store, "retention", started, result.is_ok()).await?;
+    }
+    result.map(|_| ())
+}
+async fn enforce_retention_work(store: &Store) -> anyhow::Result<bool> {
     // Coordinate sweeps across serving/worker processes sharing this database.
     let mut sweep = store.pg.begin().await?;
     let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(78422916)")
         .fetch_one(&mut *sweep)
         .await?;
     if !acquired {
-        return Ok(());
+        return Ok(false);
     }
 
     let sites:Vec<(Uuid,Uuid,i32)>=sqlx::query_as("SELECT w.id,w.organization_id,least(w.retention_days,p.retention_days) FROM websites w JOIN subscriptions s ON s.organization_id=w.organization_id JOIN plans p ON p.id=s.plan_id WHERE NOT w.is_demo AND w.deletion_requested_at IS NULL").fetch_all(&store.pg).await?;
@@ -466,8 +474,14 @@ pub async fn enforce_retention(store: &Store) -> anyhow::Result<()> {
     sqlx::query("DELETE FROM sessions WHERE expires_at<now()")
         .execute(&store.pg)
         .await?;
+    sqlx::query("DELETE FROM account_tokens WHERE expires_at<now()-interval '30 days'")
+        .execute(&store.pg)
+        .await?;
+    sqlx::query("DELETE FROM invitations WHERE expires_at<now()-interval '30 days'")
+        .execute(&store.pg)
+        .await?;
     sweep.commit().await?;
-    Ok(())
+    Ok(true)
 }
 pub async fn worker(
     store: Store,
@@ -480,9 +494,9 @@ pub async fn worker(
             break;
         }
         for result in [
-            process_deletion(&store).await,
-            process_export(&store).await,
-            mail.drain_once(&store).await,
+            crate::commercial::run(&store, "deletion", process_deletion(&store)).await,
+            crate::commercial::run(&store, "exports", process_export(&store)).await,
+            crate::commercial::run(&store, "mail", mail.drain_once(&store)).await,
         ] {
             if let Err(error) = result {
                 tracing::error!(%error,"durable control job retained for retry");

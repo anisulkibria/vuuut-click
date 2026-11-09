@@ -54,3 +54,24 @@
   refresh isolated demo data and document exact metric limits.
 - Avoid redundant retention mutations across workers and redirect completed
   export submissions so refresh cannot enqueue another export.
+
+
+## 2026-11-09 — Customer dashboard design
+
+- Fix Events filter placement, use full-width details and keep goals above
+  the long event list; add a bounded keyboard-scrollable table with sticky headers.
+- Slightly increase customer panel/table/form typography across reports,
+  advanced analytics, setup and workspace settings; correct goal action-cell layout.
+
+
+## 2026-11-10 — Commercial validation (Priority 4)
+
+- Persist exact checkout retries, provider-confirmed cancellation and safe
+  entitlement/portal transitions; permit trusted Stripe billing redirects.
+- Bound mail retry/expiry to its source link and add owner-only durable
+  fulfillment status and audited valid dead-mail recovery.
+- Add pinned catalog/mail/DNS preflight and isolated provider validation tools,
+  including an independent owner recovery run and development recipient guard.
+- Verify 47 backend checks, 11 browser scenarios, real Stripe test-clock
+  failure/recovery/replay/cancellation and controlled-inbox account/owner mail.
+  Record remaining portal/public deployment evidence in the commercial runbook.

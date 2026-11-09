@@ -55,7 +55,13 @@ async fn real_event_pipeline_is_durable_deduplicated_and_tenant_isolated() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/GeoIP2-Country-Test.mmdb"),
     );
-    let state = AppState::new(store.clone(), config).unwrap();
+    let state = AppState::with_services(
+        store.clone(),
+        config,
+        click_server::billing::Service { provider: None },
+        click_server::mail::Mailer::local(std::path::PathBuf::from(".local/mail")),
+    )
+    .unwrap();
     assert_eq!(state.geoip.country("81.2.69.142".parse().unwrap()), "GB");
     assert_eq!(state.geoip.country("2001:218::".parse().unwrap()), "JP");
     let server = tokio::spawn(async move {

@@ -76,6 +76,8 @@ pub struct Acceptance {
 pub enum AcceptError {
     #[error("Monthly event allowance reached")]
     Quota,
+    #[error("Collection is paused until billing is resolved")]
+    BillingPaused,
     #[error("Website collection is paused or disabled")]
     Disabled,
     #[error(transparent)]
@@ -102,6 +104,11 @@ impl Store {
             .with_user(ch_user)
             .with_password(ch_password)
             .with_database(ch_database)
+            // Bound reader/FINAL fan-out as well as aggregate memory. Several
+            // CTE readers can otherwise allocate large shared decompression
+            // buffers outside the per-query aggregation limit.
+            .with_option("max_threads", "2")
+            .with_option("max_final_threads", "2")
             .with_option("max_execution_time", "10")
             .with_option("max_memory_usage", "268435456")
             .with_option("max_result_rows", "10000");
@@ -211,8 +218,8 @@ impl Store {
         if !active {
             return Err(AcceptError::Disabled);
         }
-        let quota: i64 = sqlx::query_scalar("SELECT p.monthly_events FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.organization_id=$1 AND s.status IN ('free','test','active')")
-            .bind(site.organization_id).fetch_optional(&mut *tx).await?.unwrap_or(0);
+        let quota: Option<i64> = sqlx::query_scalar("SELECT p.monthly_events FROM subscriptions s JOIN plans p ON p.id=s.plan_id WHERE s.organization_id=$1 AND s.status IN ('free','test','active')")
+            .bind(site.organization_id).fetch_optional(&mut *tx).await?;
         let now = Utc::now();
         let month = now.date_naive().with_day(1).expect("first day exists");
         sqlx::query(
@@ -293,8 +300,13 @@ impl Store {
                 inserted += 1;
             }
         }
-        if used + inserted as i64 > quota {
-            return Err(AcceptError::Quota);
+        // A retry of already accepted IDs stays acknowledged after a downgrade
+        // or payment pause. Only newly inserted events need current allowance.
+        if inserted > 0 {
+            let quota = quota.ok_or(AcceptError::BillingPaused)?;
+            if used + inserted as i64 > quota {
+                return Err(AcceptError::Quota);
+            }
         }
         sqlx::query("UPDATE usage_records SET accepted_events=accepted_events+$3 WHERE organization_id=$1 AND month=$2").bind(site.organization_id).bind(month).bind(inserted as i64).execute(&mut *tx).await?;
         tx.commit().await?;

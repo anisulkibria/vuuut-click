@@ -2,6 +2,7 @@ pub mod analytics;
 pub mod api;
 pub mod auth;
 pub mod billing;
+pub mod commercial;
 pub mod config;
 pub mod costs;
 pub mod dashboard;
@@ -136,6 +137,17 @@ impl Drop for TenantPermit {
 }
 impl AppState {
     pub fn new(store: Store, config: Config) -> anyhow::Result<Self> {
+        let billing = billing::Service::from_env()?;
+        let mail = mail::Mailer::from_env(config.allow_localhost)?;
+        Self::with_services(store, config, billing, mail)
+    }
+    /// Explicit services keep isolated fixtures independent of operator credentials.
+    pub fn with_services(
+        store: Store,
+        config: Config,
+        billing: billing::Service,
+        mail: mail::Mailer,
+    ) -> anyhow::Result<Self> {
         use argon2::{
             password_hash::{rand_core::OsRng, SaltString},
             Argon2, PasswordHasher,
@@ -147,8 +159,8 @@ impl AppState {
             .to_string();
         Ok(Self {
             store,
-            billing: Arc::new(billing::Service::from_env()?),
-            mail: Arc::new(mail::Mailer::from_env(config.allow_localhost)?),
+            billing: Arc::new(billing),
+            mail: Arc::new(mail),
             config: Arc::new(config),
             geoip: Arc::new(geoip),
             password_slots: Arc::new(Semaphore::new(4)),
@@ -468,6 +480,9 @@ pub fn app(state: AppState) -> Router {
         .route("/goals", post(dashboard::create_goal))
         .route("/goals/action", post(dashboard::goal_action))
         .route("/appearance", post(dashboard::appearance))
+        .route("/owner/commercial", get(commercial::page))
+        .route("/owner/v1/commercial", get(commercial::api))
+        .route("/owner/commercial/retry-mail", post(commercial::retry_mail))
         .route("/assets/app.css", get(dashboard::stylesheet))
         .route("/assets/landing.css", get(landing::stylesheet))
         .route(
@@ -700,9 +715,16 @@ async fn guard(State(state): State<AppState>, req: Request, next: Next) -> Respo
 }
 
 async fn security_headers(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    // Browsers enforce the initiating document's form-action across redirects.
+    // Billing forms may navigate only to Stripe's two hosted billing origins.
+    let form_action = if matches!(req.uri().path(), "/settings" | "/settings/action") {
+        "'self' https://checkout.stripe.com https://billing.stripe.com"
+    } else {
+        "'self'"
+    };
     let mut response = next.run(req).await;
     let h = response.headers_mut();
-    h.insert(header::CONTENT_SECURITY_POLICY, "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'".parse().unwrap());
+    h.insert(header::CONTENT_SECURITY_POLICY, format!("default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; form-action {form_action}; frame-ancestors 'none'; base-uri 'none'").parse().unwrap());
     h.insert(header::X_CONTENT_TYPE_OPTIONS, "nosniff".parse().unwrap());
     h.insert(
         header::REFERRER_POLICY,

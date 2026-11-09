@@ -231,6 +231,11 @@ const SECTIONS: &[(&str, &str, &str)] = &[
         "Plans and usage, in one place.",
     ),
     ("delivery", "Event delivery", "Keep the insights flowing."),
+    (
+        "commercial",
+        "Commercial status",
+        "Keep the promises behind your plans.",
+    ),
     ("audit", "Audit log", "A record of what changed."),
 ];
 

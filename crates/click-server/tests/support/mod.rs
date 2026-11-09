@@ -64,7 +64,13 @@ impl Harness {
         config.require_geoip = false;
         config.geoip_path = None;
         config.secure_cookie = false;
-        let mut state = AppState::new(store.clone(), config).unwrap();
+        let mut state = AppState::with_services(
+            store.clone(),
+            config,
+            click_server::billing::Service { provider: None },
+            click_server::mail::Mailer::local(std::path::PathBuf::from(".local/mail")),
+        )
+        .unwrap();
         if let Some(provider) = provider {
             state.billing = std::sync::Arc::new(click_server::billing::Service {
                 provider: Some(provider),
