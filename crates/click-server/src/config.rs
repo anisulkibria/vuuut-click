@@ -27,6 +27,7 @@ impl Config {
             || url.query().is_some()
             || url.fragment().is_some()
             || !url.username().is_empty()
+            || url.password().is_some()
         {
             bail!("PUBLIC_URL must be an HTTP(S) origin");
         }
@@ -59,6 +60,15 @@ impl Config {
             secure_cookie: url.scheme() == "https",
             require_geoip: production || env::var("REQUIRE_GEOIP").is_ok_and(|s| s == "true"),
         };
+        if production
+            && (config.trusted_proxies.is_empty()
+                || config
+                    .trusted_proxies
+                    .iter()
+                    .any(|net| net.prefix_len() == 0))
+        {
+            bail!("Production requires exact trusted reverse-proxy CIDRs, never /0");
+        }
         if config.require_geoip && config.geoip_path.is_none() {
             bail!("GEOIP_PATH is required for this environment");
         }

@@ -392,6 +392,9 @@ pub async fn collect(
         &s.config.trusted_proxies,
     );
     let country = s.geoip.country(ip);
+    s.operations
+        .collection(&s.store, site.organization_id, events.len())
+        .await?;
     let result = s
         .store
         .accept(&site, events, &country, agent)

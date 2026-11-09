@@ -4,6 +4,8 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Exporter and SMTP dependencies may enable a second TLS provider.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     tracing_subscriber::fmt()
         .json()
         .with_env_filter(
@@ -13,10 +15,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let mode = std::env::args().nth(1).unwrap_or_else(|| "serve".into());
     if matches!(mode.as_str(), "--help" | "-h" | "help") {
-        println!("Vuuut Click commands: serve | worker | migrate | requeue-dead | seed-demo <email> | grant-owner <email> | native-platform <id> <suffix> | native-platform-disable <id> | commercial-check | commercial-mail-test | commercial-dns-test");
+        println!("Vuuut Click commands: serve | worker | migrate | drain-once | requeue-dead | seed-demo <email> | grant-owner <email> | native-platform <id> <suffix> | native-platform-disable <id> | commercial-check | commercial-mail-test | commercial-dns-test");
         println!("Load trusted private environment for service commands. Commercial payment validation requires Stripe test keys; mail probes require COMMERCIAL_TEST_EMAIL. See docs/COMMERCIAL_VALIDATION.md.");
         return Ok(());
     }
+    let _telemetry = click_server::telemetry::initialize()?;
     let config = Config::from_env()?;
     let store = Store::connect(
         &config.database_url,
@@ -27,6 +30,16 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     store.migrate().await?;
+    let _command_guard = if matches!(mode.as_str(), "serve" | "worker") {
+        None
+    } else {
+        Some(
+            store
+                .maintenance_guard()
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Maintenance is active; retry command later"))?,
+        )
+    };
     if mode == "migrate" {
         tracing::info!("migrations applied");
         return Ok(());
@@ -191,6 +204,11 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!(user_id=%id,"platform owner granted; use /owner/signin");
         return Ok(());
     }
+    if mode == "drain-once" {
+        let delivered = store.drain_once().await?;
+        println!("{delivered}");
+        return Ok(());
+    }
     if mode == "requeue-dead" {
         let count=sqlx::query("UPDATE event_outbox SET state='pending',attempts=0,available_at=now() WHERE state='dead'").execute(&store.pg).await?.rows_affected();
         tracing::info!(count, "dead-letter batches requeued");
@@ -201,15 +219,35 @@ async fn main() -> anyhow::Result<()> {
     }
     let state = AppState::new(store.clone(), config.clone())?;
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
-    let background = tokio::spawn(worker(store.clone(), stop_rx.clone()));
-    let control_worker = tokio::spawn(click_server::jobs::worker(
-        store.clone(),
-        state.mail.clone(),
-        stop_rx,
-    ));
+    let run_workers = match std::env::var("RUN_WORKERS").as_deref() {
+        Ok("false") => false,
+        Ok("true") | Err(_) => true,
+        _ => anyhow::bail!("RUN_WORKERS must be true or false"),
+    };
+    if mode == "worker" && !run_workers {
+        anyhow::bail!("worker mode requires RUN_WORKERS=true");
+    }
+    let background = tokio::spawn({
+        let store = store.clone();
+        let stop_rx = stop_rx.clone();
+        async move {
+            if run_workers {
+                worker(store, stop_rx).await
+            }
+        }
+    });
+    let control_worker = tokio::spawn({
+        let store = store.clone();
+        let mail = state.mail.clone();
+        async move {
+            if run_workers {
+                click_server::jobs::worker(store, mail, stop_rx).await
+            }
+        }
+    });
     if mode == "worker" {
         shutdown_signal().await;
-        stop_tx.send(true)?;
+        stop_tx.send_replace(true);
         background.await?;
         control_worker.await?;
         return Ok(());
@@ -222,7 +260,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;
-    stop_tx.send(true)?;
+    stop_tx.send_replace(true);
     background.await?;
     control_worker.await?;
     Ok(())

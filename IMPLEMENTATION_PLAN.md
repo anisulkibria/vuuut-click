@@ -214,3 +214,19 @@ active listener. The local
 ClickHouse instance required a graceful restart after the database suite hit
 its total-memory allowance; final browser assertions were unchanged. Production
 capacity and deployment gates remain outstanding.
+
+
+### Priority 5 local operations — 2026-11-10
+
+Implemented shared admission budgets/report leases, backup maintenance barriers,
+private metrics/OTLP and provisioned monitoring/alerts, encrypted restic snapshots
+and isolated restore/replay, pinned operator tools, source/license/secret/image
+scans, Linux/private-CA validation and reproducible local rate/cardinality drills.
+Verification:51 backend checks (27 real-store), six Python guards, strict Clippy,
+real encrypted main-data restore13.28s,1M resident synthetic dataset and5x arrival
+profiles for1M/10M/100M monthly (p95.055/.066/.305s), actual monitoring delivery,
+Linux hardening/TLS, all 11 browser scenarios and clean final runtime/source scan.
+See docs/OPERATIONS.md.
+User chose local validation first: off-machine storage/escrow, public deployment,
+full production-volume/soak qualification and independent review remain external
+gates. Pause after this checkpoint; Priority6 starts only when the user resumes.

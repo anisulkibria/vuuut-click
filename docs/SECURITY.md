@@ -1,93 +1,122 @@
-# Security and privacy
+# Deployment and operations
 
-Platform owners use `/owner/signin`; customers use `/signin`. Platform ownership is an explicit `platform_owners` grant from the operator CLI, never a public signup option or a workspace owner role. Owner credentials are rejected by the normal login endpoints. `click_owner_session` is scoped to `/owner`, lasts 8 hours, and resolves only sessions with audience `owner` and a current owner grant. Customer `click_session` is scoped to `/`, lasts 7 days, and resolves only audience `user` for non-platform-owner accounts. Neither portal falls back to the other cookie. Login/logout affects only its own portal; owner logout also revokes its pending MFA challenge. Cookie-name swapping cannot bypass the database audience checks.
+## Development / standalone
 
-Passwords use Argon2id, random opaque sessions/API keys are SHA-256 hashed at rest. HttpOnly, SameSite=Strict cookies use Secure for HTTPS; production startup requires HTTPS. Cookie mutations require an exact configured Origin. Bearer API keys are website scoped and cannot create credentials or organizations. Public collection tokens carry no read privilege.
+`./run.sh` is the verified local entrypoint. It generates `.env` with private file mode and distinct random database secrets, starts named Compose volumes and builds the Rust server. There is no dependency on hosted SaaS or Tinybird Cloud. Stop the server with Ctrl+C, databases with `./run.sh --stop`. Re-run after editing Rust. Retain `.env`: changing passwords in it does not rotate credentials inside existing PostgreSQL/ClickHouse volumes.
 
-All analytics routes resolve the website via authenticated membership or a website-scoped read key. Permission failures intentionally return 404. Browser collection requires a verified domain matching both Origin and event URL. This prevents casual cross-site contamination but a public collector cannot prove a human browser or prevent determined forged events. Public tokens are not secrets.
+The tracker bundle is committed, so Rust can compile without Node. Rebuild the browser SDK only after editing its TypeScript source.
 
-DNS verification rechecks management permissions and workspace status after the lookup, and applies only to the exact origin/challenge looked up. Origin updates compare the current locked row before retaining verification.
+The local test-page link is enabled only when ALLOW_LOCALHOST=true and the registered website origin equals PUBLIC_URL. It collects actual visits, is labeled as a development test page, and is disabled in production.
 
-Only explicitly configured reverse-proxy CIDRs can contribute X-Forwarded-For. Walk from the immediate peer right to left until the first untrusted hop. Cloudflare country/IP headers are not trusted independently; deployments must configure current Cloudflare CIDRs in the edge and application allowlist. Bad/unknown lookup returns ZZ. No IP persistence, IP fingerprint or arbitrary user-agent storage. URL queries/fragments and referrer paths are removed; only explicit campaign fields survive validation. Site owners must avoid personal identifiers in paths/event names/campaign labels.
+## Production preparation
 
-Current rate limits are per-process bounded buckets and do not replace edge/distributed abuse controls. Quotas are transactionally enforced. DB/query errors are logged with no payloads/credentials and return generic errors. TLS terminates at Caddy. PostgreSQL/ClickHouse are private to the Docker network in production.
+Dockerfile builds a Rust binary and runs it unprivileged. `deploy/compose.production.yml` contains PostgreSQL, ClickHouse, app and Caddy with persistent volumes, health checks and memory limits. These configuration templates are not a production-readiness certification. A Linux container image build, TLS/domain deployment, backup restore drill and the release gates in SECURITY.md must pass before public launch.
 
-## Release gates
+1. Create a private production env file with DOMAIN, random hex POSTGRES_PASSWORD and CLICKHOUSE_PASSWORD. Do not use the development file or default credentials. Use an audited secrets manager for real operations.
+2. Point the domain to your Linux host. Install Docker Compose, restrict firewall exposure to SSH/80/443. Database ports are not published by production Compose.
+3. Obtain GeoLite2-Country with your own MaxMind account. Place it at `data/geoip/GeoLite2-Country.mmdb`; review commercial/redistribution terms. The application fails closed at startup if missing in production.
+4. Set the actual reverse-proxy CIDR in TRUSTED_PROXIES and restrict direct traffic to the edge. Caddy appends the client address to forwarding headers. The application only trusts headers from the configured immediate proxy network and walks the chain right-to-left. Set a fixed private Docker subnet if stable allowlists are required.
+5. Review image vulnerability scans and version pins, then `docker compose --env-file /secure/production.env -f deploy/compose.production.yml up -d --build`.
+6. Confirm readiness inside the private app container, create an account, register and verify a domain and test a browser event against ClickHouse. Public HTTPS is required for secure cookies.
 
-Not yet production ready: MFA review, distributed/per-tenant request budgets, expanded abuse/concurrency testing, audited SSO, deployment-specific payment/sender configuration and public sender authentication, OTel, dependency and image scanning, encrypted backup/restore drills and independent security review remain required. Email verification/reset, invitation/role/key lifecycle, durable privacy jobs and signature-verified billing workflows are implemented and tested locally; real Stripe test-mode and controlled-inbox SMTP evidence is in COMMERCIAL_VALIDATION.md. Reports have four concurrent requests per workspace and sixteen per process, plus ClickHouse time/memory/result limits. These request budgets are per process; distributed enforcement remains a release gate. Enforce deployment resource and data-volume budgets before public access.
+Use the same deployment/API for standalone Ghost. Native Vuuut/Vuuut-pro provisioning, plan/domain lifecycle and server-side staff exchange are implemented; see GHOST_INTEGRATION.md for opt-in configuration.
 
-Hosted operator is responsible for processor agreements, policies, retention/deletion fulfillment and incident response; customers control collection purposes and consent. Self-hosted operators assume both deployment and processing duties. No universal GDPR/ePrivacy compliance claim. Honor browser DNT/GPC and require explicit SDK consent unless an operator deliberately chooses anonymous mode after applicable review.
+## GeoIP updates
 
-GeoLite databases are licensed, not bundled assets. Download with the operator's own MaxMind license; review commercial hosted use and any redistribution separately against current terms. Attribute MaxMind and use geoipupdate for updates. Test fixtures from MaxMind-DB are test data, not production GeoLite data.
+Use MaxMind's maintained `geoipupdate` program on the operator's host with their own account and license in a private GeoIP.conf; EditionIDs GeoLite2-Country, DatabaseDirectory `data/geoip`. Schedule daily through the host timer/cron and monitor failures/database age. After atomic update, restart the app to reload the reader. No licensed database belongs in Git or the container image. Local files are never sent to a paid geolocation API.
 
-## Owner account security and recovery
+## Delivery / incidents
 
-The owner sidebar links to `/owner/account` for display name, password, other-session revocation and authenticator setup. MFA is opt-in; existing owners are not silently enrolled. Setup requires the current password, then a code from the app within 15 minutes. Enabling MFA revokes all other sessions. Authenticator setup uses RFC 6238, SHA1, six digits and 30-second steps with one step of clock skew; the last accepted step cannot be replayed. Keep server clocks synchronized. Ten random one-use recovery codes are displayed only on enrollment or replacement; PostgreSQL stores their hashes. Replacing codes or disabling MFA requires the password and a fresh factor, and revokes other sessions. Pending enrollment secrets are never displayed by the account page.
+PostgreSQL is the durability boundary. ClickHouse outages retain pending payloads with bounded retries; after 20 failures rows become dead letters. Inspect counts/oldest available_at/attempts with a privileged database connection; recover the cause, then run `click-server requeue-dead`. Never delete outbox ledger rows to retry: doing so can inflate usage or permit replay under new acceptance time. A worker drains at most 500 events per transaction; a process restart replays safely. `serve` embeds a worker; `worker` runs independently when extra drain capacity is needed.
 
-Once enrolled, password sign-in creates only a five-minute `owner_pending` session with a separate HttpOnly cookie scoped to `/owner`. It cannot read customer or owner data. Completing the challenge consumes the TOTP step or recovery code and the pending session atomically; five failures exhaust that challenge. A full owner session is issued only after successful verification. The current-password check, session/grant recheck, factor consumption and account updates serialize on the user row. Customer password changes invalidate outstanding customer reset links and all older customer sessions. Login, reset and operator promotion take the same account lock.
+Logs use structured tracing and query limits are enforced in the ClickHouse client. Prometheus/Grafana dashboards and OpenTelemetry export are remaining operations milestones; no unsupported monitoring guarantees are claimed.
 
-Owner email recovery starts at `/owner/forgot-password`. The token is separate from customer reset tokens, expires after 30 minutes, permits five factor attempts, and can be used once. Email recovery still requires a fresh authenticator or unused recovery code if MFA is enabled; it never disables MFA. Successful recovery invalidates all account tokens and sessions. If an owner has lost the authenticator and all recovery codes, the email link alone cannot recover access: an authorized database operator must follow a verified identity/recovery procedure. There is no public MFA bypass. Controlled-inbox owner SMTP recovery has passed; public sender deliverability and independent MFA/security review remain release gates.
+## Backups, upgrades and rollback
 
-Authenticator shared secrets must remain retrievable to verify codes. They are currently stored in the private PostgreSQL database, so encrypted disks/backups and strict database access matter; application-level encryption and managed key rotation are not claimed. Do not capture enrollment/recovery pages in production logs or support screenshots. Generated development screenshots and mail remain ignored artifacts.
+A complete recovery point includes PostgreSQL (control, credentials, dedup ledger and pending outbox), ClickHouse raw plus aggregate tables, secrets and the configured MMDB source. Snapshot consistency across both stores matters: restore the PostgreSQL queue/dedup ledger together with corresponding ClickHouse data. Replaying already-inserted events is safe; losing the ledger and accepting old IDs at new timestamps is not safe.
 
-## Errors, query budgets and invitation mail
+Encrypted S3-compatible backup and isolated restore tools are implemented in scripts/backup.py. Local validation does not prove off-machine storage or a production recovery schedule; complete those deployment gates before commercial operation. See OPERATIONS.md. For local development, named Docker volumes survive stops; `down -v` destroys them and is intentionally never used by run.sh.
 
-Malformed JSON/form/path/query inputs use the common JSON error envelope. HTML navigations instead receive themed, escaped error pages with a dashboard/sign-in link; API/fetch clients retain JSON. Global and workspace report overload return 503 with a two-second retry hint; the per-IP allowance returns 429 with 60 seconds. Security and no-store headers also cover refusals. Journey queries select the newest 25 sessions first and keep only the earliest 100 steps in each aggregation state, while preserving full event counts and replay deduplication. ClickHouse retains its 10-second, 256 MiB and 10,000-result-row bounds.
+Migrations apply before the listener starts. PostgreSQL SQLx migration history is versioned/checksummed. ClickHouse migrations 0001–0003 are idempotent, serialized with a PostgreSQL advisory lock and recorded with checksums in control_migrations. Future schema changes require new migration versions and backfill tests. Take verified backups before every migration; pin a container tag for rollback. Roll back binaries only across compatible schemas; destructive schema rollback requires the tested restore procedure. Do not drop tables or mutate sibling Ghost schemas.
 
-Invitations and their email queue records commit in the same transaction. API `emailed` means queued, not confirmed delivery. Email includes workspace, role, expiry and the fragment acceptance link; the returned link remains available for manual sharing. The recipient must sign in with the invited email. SMTP uses the configured account mail transport; development writes private files. Delivery retries may duplicate a message if the SMTP service accepts it before a local commit fails; invitation acceptance is still single-use.
+## Transactional mail and billing configuration
 
-Implementation references: [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238), [ClickHouse groupArraySorted](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/grouparraysorted).
+Production registration requires configured SMTP; domain creation requires verified email. Set SMTP_HOST, SMTP_PORT (587 STARTTLS or 465 TLS), SMTP_FROM, and optionally both SMTP_USERNAME/SMTP_PASSWORD. Without SMTP, local development writes 0600 messages under ignored `.local/mail` (0700); it never pretends to send external email. Account-token queue bodies are cleared after delivery. Monitor pending/dead mail and manage local mailbox retention; automatic local-mail deletion is not implemented.
 
+Stripe configuration: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICES_JSON such as `{"pro:monthly":"price_...","pro:annual":"price_..."}`. Configure the provider webhook for checkout.session.completed and customer.subscription.created/updated/deleted at `/v1/billing/webhooks/stripe`. Keep test/live modes consistent. Customer owners use Billing & usage in settings; platform manual grants cannot replace a provider-linked subscription. Verify real checkout, portal, cancellation, failed payment and webhook redelivery in the operator's Stripe test account before launch. Real Stripe test-mode and controlled-inbox SMTP checks are recorded in COMMERCIAL_VALIDATION.md. Test validation does not configure live billing or production sender/domain settings.
 
-## Native connector boundaries
+The privacy worker applies the smaller of website/plan retention to real websites in hourly buckets, discards expired pending payloads before replay, deletes expired exports and sessions, and processes durable data deletion. Demonstration websites are excluded from retention policy changes and live collection. Retention relies on a running worker; monitor failures.
 
-`native_platforms` grants operator-selected domain suffix authority; its token
-is hashed and never installed in a CMS. A custom origin outside that authority
-needs an independent TXT verification. JWKS are pinned through an authenticated
-website connector; JWTs never initiate network discovery. RS256, issuer,
-dedicated audience, role, website, expiry/issued-time bounds and one-use jti
-are checked. Opaque staff access lasts 60 seconds and grants one website's
-report reads only; it never creates a customer or owner session. Generation,
-credential revocation, platform/workspace/website state and the current origin
-are rechecked on native reads. Integration credentials are rechecked under the
-same workspace lock as durable event acceptance.
+## Owner account recovery
 
-CMS integration state is outside settings/public APIs and only public collector
-attributes enter theme context. Hosting exports scrub native credentials from
-generated configuration. Automatic conversions do not join member identities
-to browser sessions. Transactional source outboxes transmit hashed event IDs
-and minimized facts only. See GHOST_INTEGRATION.md for exact retry/dead-letter,
-consent and supported provider event behavior. Independent SSO/security review
-and production service/restore/load gates remain required.
+Grant access only through `click-server grant-owner <existing-account-email>`, then sign in at `/owner/signin`. Open **Account & security** to enroll an authenticator and store the one-use recovery codes privately. Maintain a reliable, synchronized system clock. Configure and verify SMTP before depending on `/owner/forgot-password`; local development without SMTP writes the recovery link to `.local/mail` instead of sending email. Email recovery preserves MFA. Losing both the authenticator and all recovery codes requires an operator-assisted identity/recovery process, not a customer reset link. The database contains authenticator shared secrets; secure its access, storage and backups.
+
+Team invitations use the same transactional mail outbox and transport. The UI says when a message is queued or when a link must be shared manually. Monitor delivery failures before assuming that an invite reached an inbox.
 
 
-Priority 3 telemetry remains opt-in and obeys consent, DNT and GPC. Coarse OS
-categories are stored without raw user agents. Newsletter edition/recipient
-hashes are scoped to the website and edition, cannot join different editions
-or browser sessions, and recipient hashes are excluded from CSV exports.
-Native staff read tokens remain read-only. Cost writes require an active
-website integration credential or a managing customer session with exact
-Origin, with authorization rechecked under the workspace lock. Source
-references are hashed and revisions reject conflicting/stale updates; supplied
-costs are labeled with their provenance, not presented as provider-verified.
-
-Commercial validation stores exact checkout parameters privately to preserve
-provider idempotency across retries/ownership/configuration changes. Cancelled
-sessions are acknowledged by the provider before reopening a selection; portal
-privileges are rechecked after network I/O. Native hosting plans cannot be
-replaced with test billing. Mail failures consume bounded attempts; source
-expiry/revocation/consumption clears queued bodies and refuses operator retry.
-Reset-request cooldown is durable per account/purpose, including consumed tokens.
-Owner-only fulfillment responses contain counts, times and generic codes, never
-message bodies or credentials. The test helper requires development/test mode,
-isolates its stores and checks owned process/database identity during cleanup.
+Native integration is opt-in. Deploy the matching CMS (0038–0040) and hosting (0004–0005)
+builds alongside Click's additive PostgreSQL migrations 0010–0011. Register the
+platform via the operator CLI and keep its credential only in private platform
+configuration; see GHOST_INTEGRATION.md. Restart hosting after platform key or
+plan-map changes to reconcile new revisions. Back up mapping/tombstone state
+with the control DB. A credential rotation/disconnect must be acknowledged;
+retry uncertain operations using the persisted replacement/version. Public TLS/DNS and independent SSO review remain external validation gates;
+real test-mode payment and SMTP evidence is recorded in COMMERCIAL_VALIDATION.md.
 
 
-Billing settings alone allow form redirects to the exact HTTPS origins
-`checkout.stripe.com` and `billing.stripe.com`; every other page keeps self-only
-form targets. Provider URLs independently reject other hosts, ports and userinfo.
-The browser regression verifies actual allowed navigation and lookalike-host
-blocking. Development SMTP is restricted to `COMMERCIAL_TEST_EMAIL` whenever
-`ALLOW_LOCALHOST=true`; fixture services use local files regardless of operator
-credentials. Public sender authentication and the deployment abuse contact
-remain separate checks; same-inbox Gmail receipt does not establish alignment.
+Priority 3 upgrades apply PostgreSQL 0011 and ClickHouse 0003 before the
+listener starts; deploy Click before CMS 0040 and the updated hosting binary.
+Existing rows remain legacy/unclassified for identity and have no invented
+engagement or newsletter history. Campaign costs live in PostgreSQL and must
+be included in backups; retention/deletion applies to them too. Refresh only
+explicitly labeled demo sites with `seed-demo` to see sample reports.
+
+Retention sweeps share a PostgreSQL advisory lock across processes and check
+for expired rows before scheduling ClickHouse mutations. Empty sweeps no
+longer rewrite shared aggregate parts. This avoids redundant local work;
+distributed abuse/report budgets remain a separate release gate.
+
+Priority 4 commercial setup and the test-only isolated provider workflow are in
+[COMMERCIAL_VALIDATION.md](COMMERCIAL_VALIDATION.md). Deploy additive PostgreSQL
+0012–0013 with the corresponding binary. Real Stripe price/portal checks, SMTP
+acceptance plus inbox authentication, and public TXT/HTTPS evidence must be
+recorded for your deployment; local fixtures never substitute for them. Test
+credentials are optional for normal local operation. Live Stripe keys are
+refused outside APP_ENV=production, and partial Stripe configuration fails
+startup rather than silently selecting local test billing. Keep fixture runs
+on explicit local mail/no-provider services; the external helper alone uses
+the configured real services and operator inbox in isolated stores.
+
+
+The operator explicitly deferred deployment-domain setup on 2026-11-10; no
+connected Hostinger domain is used for Vuuut Click. Keep public TXT/TLS and
+sender SPF/DKIM/DMARC/bounce/abuse checks open until that domain is configured.
+For development SMTP, `ALLOW_LOCALHOST=true` requires `COMMERCIAL_TEST_EMAIL`
+and restricts delivery to that exact controlled inbox. Fixture browser servers
+must omit STRIPE_/SMTP_/COMMERCIAL_ settings; Rust integration fixtures explicitly
+inject local services. A real test-mode main server must have a matching active
+Stripe listener forwarding to its own webhook endpoint, rather than an expired
+isolated QA port.
+
+
+Priority 5 operational configuration, monitoring, shared budgets, recovery tools
+and local validation commands are documented in [OPERATIONS.md](OPERATIONS.md).
+Merge compose.observability.yml with production Compose; configure the actual
+alert receiver and private scrape mounts. Systemd timer templates are under
+deploy/systemd. Build on a separate build worker; the local4GB Docker VM is not
+a production capacity qualification. Public-domain work remains deferred.
+
+
+Operator metrics: `GET /internal/metrics` requires the independent configured
+METRICS_BEARER_TOKEN and returns Prometheus text. Customer/owner cookies and
+website API keys do not authorize it. The public Caddy edge returns404 for
+/internal/*; scrape only the private application network. See OPERATIONS.md.
+
+
+Priority 5 adds cluster-wide PostgreSQL admission budgets and report leases,
+window-scoped HMAC network counters (three-minute lifetime), bounded request
+concurrency/deadlines, private metrics and restricted OTLP attributes. Backups
+coordinate writers before copying both stores, configuration and configured MMDB;
+restore always uses newly generated isolated stores. Source/image scans and
+license policy are local evidence, not independent review or public deployment
+acceptance. See OPERATIONS.md for boundaries, recovery and incident procedures.

@@ -1,0 +1,18 @@
+receivers:
+  otlp:
+    protocols:
+      http: {endpoint: "0.0.0.0:4318"}
+processors:
+  memory_limiter: {check_interval: 1s, limit_mib: 64, spike_limit_mib: 16}
+  batch: {send_batch_size: 64, timeout: 5s}
+exporters:
+  debug: {verbosity: basic}
+  file:
+    path: /tmp/traces.jsonl
+    rotation: {max_megabytes: 20, max_days: 1, max_backups: 3}
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [file]

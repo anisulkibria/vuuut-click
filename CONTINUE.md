@@ -1,6 +1,6 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–3 are complete and verified locally. Priority 4 safeguards are implemented: **47/47 backend checks, 11/11 browser scenarios**, real Stripe test-mode lifecycle/webhooks and controlled-inbox verification/reset/invitation/owner recovery passed. Manual hosted Checkout, portal annual change and period-end cancellation are verified. Isolated QA resources are cleaned up; Priority 4 is complete within the agreed test scope. The user explicitly deferred public-domain setup and excluded all connected Hostinger sites. Current runtime and exact evidence are in the latest Priority 4 section below and docs/COMMERCIAL_VALIDATION.md. Production release gates remain separate. Local Click runs at http://localhost:8082 with verified test Stripe/SMTP; existing credentials/data are preserved. Do not commit or push.
+Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–5 are complete in the authorized local scope. Work is paused before Priority 6; the user explicitly chose local validation first and requested **pause after Priority5, before Priority6**. Preserve the latest Priority5 evidence and final completion note below. Public-domain work remains deferred and no Hostinger site is authorized. Main runs on http://localhost:8082 with real TEST Stripe/scoped SMTP plus shared admission/metrics/OTLP. No commit or push.
 
 ## What the user is building
 
@@ -934,3 +934,34 @@ its matching active test listener when exercising real billing. A machine
 restart requires restarting that listener (or removing all Stripe configuration
 until it is available); run.sh does not create an external webhook endpoint.
 No remaining P4 implementation work is pending after these accepted deferrals.
+
+## Priority 5 complete locally — paused, 2026-11-10
+
+Implemented distributed admission/report leases, cooperative backup barriers,
+private metrics and OTLP, provisioned monitoring/alerts, encrypted restic recovery,
+Linux hardening and repeatable capacity/security validation. Main8082 runs the
+validated candidate with original accounts/data and real TEST Stripe/scoped SMTP.
+No commit or push. Do not start Priority 6 until the user resumes.
+
+Final checks passed: 51 backend tests (27 real-store), all 11 browser scenarios,
+six Python safety checks, strict Clippy and formatting. Actual main-data encrypted
+restore verified both stores/configuration in 13.28 seconds. Local recovery replay,
+1M resident synthetic rows and 5x arrival profiles for 1M/10M/100M monthly passed
+(p95 0.055/0.066/0.305 seconds). Private-CA Linux TLS/hardening, real Prometheus
+scrape/alert delivery/Grafana and source/license/secret/runtime scans passed;
+zero high/critical or secret findings, no advisory ignores.
+
+Evidence: `.local/priority5-backend.log`, `priority5-browser-bounded.log`,
+`priority5-python-final.log`, `priority5-clippy-final.log`,
+`priority5-main-restore-final.log`, `priority5-security-verified.log`, and curated
+`.local/ops/{validation,linux,monitoring,security}-evidence.json`.
+The temporary browser server is stopped. Main8082, its matching Stripe listener
+and private local monitoring remain available. Local encrypted repository/password
+are private under `.local/ops`; this is not an off-machine or escrowed backup.
+
+External deployment gates remain: the user's later domain/public TLS and licensed
+GeoIP, off-machine backup/escrow, full-volume sustained capacity qualification and
+independent security review. Local arrival profiles do not qualify 100M resident
+rows. See `docs/OPERATIONS.md` for commands, limitations and recovery procedures.
+The checked-in ClickHouse read-buffer profile and chunked Native backups address
+the local 4GB VM memory refusals without weakening counts/report assertions.

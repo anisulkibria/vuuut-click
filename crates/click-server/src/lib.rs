@@ -16,9 +16,11 @@ pub mod mail;
 pub mod manage;
 pub mod native;
 pub mod newsletters;
+pub mod operations;
 pub mod owner;
 pub mod owner_security;
 pub mod settings;
+pub mod telemetry;
 pub mod workspace;
 use axum::{
     extract::{ConnectInfo, Request, State},
@@ -38,12 +40,12 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::Semaphore;
-use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AppState {
     pub store: Store,
+    pub operations: Arc<operations::Operations>,
     pub billing: Arc<billing::Service>,
     pub mail: Arc<mail::Mailer>,
     pub config: Arc<Config>,
@@ -139,7 +141,9 @@ impl AppState {
     pub fn new(store: Store, config: Config) -> anyhow::Result<Self> {
         let billing = billing::Service::from_env()?;
         let mail = mail::Mailer::from_env(config.allow_localhost)?;
-        Self::with_services(store, config, billing, mail)
+        let mut state = Self::with_services(store, config, billing, mail)?;
+        state.operations = Arc::new(operations::Operations::from_env()?);
+        Ok(state)
     }
     /// Explicit services keep isolated fixtures independent of operator credentials.
     pub fn with_services(
@@ -159,6 +163,7 @@ impl AppState {
             .to_string();
         Ok(Self {
             store,
+            operations: Arc::new(operations::Operations::local()),
             billing: Arc::new(billing),
             mail: Arc::new(mail),
             config: Arc::new(config),
@@ -480,6 +485,7 @@ pub fn app(state: AppState) -> Router {
         .route("/goals", post(dashboard::create_goal))
         .route("/goals/action", post(dashboard::goal_action))
         .route("/appearance", post(dashboard::appearance))
+        .route("/internal/metrics", get(operations::metrics))
         .route("/owner/commercial", get(commercial::page))
         .route("/owner/v1/commercial", get(commercial::api))
         .route("/owner/commercial/retry-mail", post(commercial::retry_mail))
@@ -628,13 +634,16 @@ pub fn app(state: AppState) -> Router {
         )
         .layer(axum::extract::DefaultBodyLimit::max(64 * 1024))
         .layer(middleware::from_fn_with_state(state.clone(), guard))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            telemetry::observe,
+        ))
         // Outside `guard`, so its own 429 and 503 are negotiated too.
         .layer(middleware::from_fn(html_errors))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             security_headers,
         ))
-        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 /// A refusal the whole stack can render: the same JSON shape every
@@ -656,6 +665,10 @@ fn refusal(status: StatusCode, retry_after: &'static str, message: &'static str)
 
 async fn guard(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let path = req.uri().path();
+    // Liveness and protected metrics must remain available when PG is down.
+    if matches!(path, "/healthz" | "/readyz" | "/internal/metrics") {
+        return next.run(req).await;
+    }
     let analytical = req.method() == axum::http::Method::GET
         && (matches!(path, "/dashboard" | "/insights") || path.starts_with("/v1/websites/"));
     let _query_permit = if analytical {
@@ -690,7 +703,18 @@ async fn guard(State(state): State<AppState>, req: Request, next: Next) -> Respo
         || req.uri().path().starts_with("/owner/account/")
         || req.uri().path().starts_with("/account/")
         || req.uri().path().starts_with("/v1/account/");
-    let limited = {
+    let limited = if state.operations.distributed {
+        match state.operations.edge(&state.store, ip, sensitive).await {
+            Ok(allowed) => !allowed,
+            Err(_) => {
+                return refusal(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "2",
+                    "Shared request budgets are unavailable; retry shortly",
+                )
+            }
+        }
+    } else {
         let mut window = state.rate.lock().expect("rate mutex poisoned");
         if window.since.elapsed() > Duration::from_secs(60) {
             window.buckets.clear();
@@ -710,6 +734,38 @@ async fn guard(State(state): State<AppState>, req: Request, next: Next) -> Respo
             "60",
             "Too many requests from this address. Please try again in a minute.",
         );
+    }
+    // Four coordinating writers leave database connections for handler queries.
+    // A backup holds the exclusive counterpart; new mutations fail closed.
+    let _write_slot;
+    let _barrier;
+    if !matches!(
+        *req.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    ) {
+        _write_slot = match state.operations.writes.clone().acquire_owned().await {
+            Ok(slot) => Some(slot),
+            Err(_) => {
+                return refusal(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "2",
+                    "Writes are busy; retry shortly",
+                )
+            }
+        };
+        _barrier = match state.store.maintenance_guard().await {
+            Ok(Some(guard)) => Some(guard),
+            _ => {
+                return refusal(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "30",
+                    "Maintenance is in progress; retry shortly",
+                )
+            }
+        };
+    } else {
+        _write_slot = None;
+        _barrier = None;
     }
     next.run(req).await
 }

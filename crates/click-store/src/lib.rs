@@ -114,7 +114,21 @@ impl Store {
             .with_option("max_result_rows", "10000");
         Ok(Self { pg, ch })
     }
+    /// Paired with the backup operator's exclusive advisory transaction lock.
+    pub async fn maintenance_guard(
+        &self,
+    ) -> Result<Option<sqlx::Transaction<'static, sqlx::Postgres>>, sqlx::Error> {
+        let mut tx = self.pg.begin().await?;
+        let allowed: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock_shared(78422990)")
+            .fetch_one(&mut *tx)
+            .await?;
+        Ok(allowed.then_some(tx))
+    }
     pub async fn migrate(&self) -> Result<()> {
+        let _maintenance = self
+            .maintenance_guard()
+            .await?
+            .context("Maintenance is active; retry startup later")?;
         sqlx::migrate!("../../migrations/postgres")
             .run(&self.pg)
             .await?;
@@ -202,6 +216,12 @@ impl Store {
             return Err(AcceptError::Quota);
         }
         let mut tx = self.pg.begin().await?;
+        let allowed: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock_shared(78422990)")
+            .fetch_one(&mut *tx)
+            .await?;
+        if !allowed {
+            return Err(AcceptError::Disabled);
+        }
         // Serializes usage and duplicate decisions across concurrent batches for the organization.
         sqlx::query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE")
             .bind(site.organization_id)
@@ -318,6 +338,12 @@ impl Store {
     /// Holds locks during the bounded ClickHouse request. Other workers skip these rows.
     pub async fn drain_once(&self) -> Result<usize> {
         let mut tx = self.pg.begin().await?;
+        let allowed: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock_shared(78422990)")
+            .fetch_one(&mut *tx)
+            .await?;
+        if !allowed {
+            return Ok(0);
+        }
         let batch: Vec<(Uuid,Uuid,serde_json::Value)> = sqlx::query_as("SELECT website_id,event_id,payload FROM event_outbox WHERE state='pending' AND available_at<=now() ORDER BY accepted_at LIMIT 500 FOR UPDATE SKIP LOCKED")
             .fetch_all(&mut *tx).await?;
         if batch.is_empty() {

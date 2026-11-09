@@ -35,7 +35,7 @@ Logs use structured tracing and query limits are enforced in the ClickHouse clie
 
 A complete recovery point includes PostgreSQL (control, credentials, dedup ledger and pending outbox), ClickHouse raw plus aggregate tables, secrets and the configured MMDB source. Snapshot consistency across both stores matters: restore the PostgreSQL queue/dedup ledger together with corresponding ClickHouse data. Replaying already-inserted events is safe; losing the ledger and accepting old IDs at new timestamps is not safe.
 
-Encrypted off-site S3 backup scripts and automated restore verification are not yet implemented; do not operate commercially before this gate is complete. For local development, named Docker volumes survive stops; `down -v` destroys them and is intentionally never used by run.sh.
+Encrypted S3-compatible backup and isolated restore tools are implemented in scripts/backup.py. Local validation does not prove off-machine storage or a production recovery schedule; complete those deployment gates before commercial operation. See OPERATIONS.md. For local development, named Docker volumes survive stops; `down -v` destroys them and is intentionally never used by run.sh.
 
 Migrations apply before the listener starts. PostgreSQL SQLx migration history is versioned/checksummed. ClickHouse migrations 0001–0003 are idempotent, serialized with a PostgreSQL advisory lock and recorded with checksums in control_migrations. Future schema changes require new migration versions and backfill tests. Take verified backups before every migration; pin a container tag for rollback. Roll back binaries only across compatible schemas; destructive schema rollback requires the tested restore procedure. Do not drop tables or mutate sibling Ghost schemas.
 
@@ -97,3 +97,11 @@ must omit STRIPE_/SMTP_/COMMERCIAL_ settings; Rust integration fixtures explicit
 inject local services. A real test-mode main server must have a matching active
 Stripe listener forwarding to its own webhook endpoint, rather than an expired
 isolated QA port.
+
+
+Priority 5 operational configuration, monitoring, shared budgets, recovery tools
+and local validation commands are documented in [OPERATIONS.md](OPERATIONS.md).
+Merge compose.observability.yml with production Compose; configure the actual
+alert receiver and private scrape mounts. Systemd timer templates are under
+deploy/systemd. Build on a separate build worker; the local4GB Docker VM is not
+a production capacity qualification. Public-domain work remains deferred.

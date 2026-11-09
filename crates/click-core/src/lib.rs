@@ -265,7 +265,7 @@ pub fn client_ip(peer: IpAddr, forwarded: Option<&str>, trusted: &[IpNet]) -> Ip
 
 pub struct GeoIp(Option<maxminddb::Reader<Vec<u8>>>);
 impl GeoIp {
-    pub fn open(path: Option<&Path>) -> Result<Self, maxminddb::MaxMindDBError> {
+    pub fn open(path: Option<&Path>) -> Result<Self, maxminddb::MaxMindDbError> {
         Ok(Self(
             path.map(maxminddb::Reader::open_readfile).transpose()?,
         ))
@@ -273,10 +273,13 @@ impl GeoIp {
     pub fn country(&self, ip: IpAddr) -> String {
         self.0
             .as_ref()
-            .and_then(|r| r.lookup::<maxminddb::geoip2::Country>(ip).ok())
-            .and_then(|c| c.country.and_then(|c| c.iso_code))
-            .unwrap_or("ZZ")
-            .to_owned()
+            .and_then(|r| r.lookup(ip).ok())
+            .and_then(|r| {
+                r.decode_path::<String>(&maxminddb::path!["country", "iso_code"])
+                    .ok()
+                    .flatten()
+            })
+            .unwrap_or_else(|| "ZZ".to_owned())
     }
     pub fn available(&self) -> bool {
         self.0.is_some()

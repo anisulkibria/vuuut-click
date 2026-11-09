@@ -1,0 +1,12 @@
+[Unit]
+Description=Vuuut Click encrypted consistent backup
+After=network-online.target
+[Service]
+Type=oneshot
+User=vuuut-click
+WorkingDirectory=/opt/vuuut-click
+EnvironmentFile=/etc/vuuut-click/backup.env
+ExecStart=/opt/vuuut-click/.venv/bin/python scripts/backup.py snapshot
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true

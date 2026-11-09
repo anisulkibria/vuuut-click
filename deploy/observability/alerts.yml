@@ -1,0 +1,48 @@
+groups:
+  - name: click-release
+    rules:
+      - alert: ClickServiceDown
+        expr: up{job="click"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "Click metrics endpoint is unavailable", runbook: "docs/OPERATIONS.md#incident-response"}
+      - alert: ClickDependencyDown
+        expr: click_dependency_up == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "A Click data store is unavailable", runbook: "docs/OPERATIONS.md#incident-response"}
+      - alert: ClickOutboxDelayed
+        expr: click_outbox_oldest_pending_seconds > 60
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Accepted event delivery is delayed", runbook: "docs/OPERATIONS.md#incident-response"}
+      - alert: ClickDeadLetters
+        expr: click_outbox_dead > 0 or click_mail_dead > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Click has dead letters requiring investigation", runbook: "docs/OPERATIONS.md#incident-response"}
+      - alert: ClickFulfillmentStale
+        expr: time() - click_fulfillment_last_success_timestamp_seconds > 300
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "A fulfillment worker has no recent success", runbook: "docs/OPERATIONS.md#incident-response"}
+      - alert: ClickPrivacyWorkDelayed
+        expr: click_exports_old_pending > 0 or click_deletions_old_pending > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Privacy fulfillment is overdue", runbook: "docs/OPERATIONS.md#incident-response"}
+      - alert: ClickBackupStale
+        expr: time() - click_backup_last_success_timestamp_seconds > 86400
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "No successful encrypted backup within 24 hours", runbook: "docs/OPERATIONS.md#backups-and-recovery"}
+      - alert: ClickRestoreDrillStale
+        expr: time() - click_restore_last_success_timestamp_seconds > 604800
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "No verified restore drill within seven days", runbook: "docs/OPERATIONS.md#backups-and-recovery"}
+      - alert: ClickServerErrors
+        expr: sum(rate(click_http_requests_total{status_class="5xx"}[5m])) / clamp_min(sum(rate(click_http_requests_total[5m])), 0.001) > 0.01
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Click server errors exceed one percent", runbook: "docs/OPERATIONS.md#incident-response"}

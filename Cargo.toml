@@ -8,8 +8,8 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-click-core = { path = "crates/click-core" }
-click-store = { path = "crates/click-store" }
+click-core = { path = "crates/click-core", version = "0.1.0" }
+click-store = { path = "crates/click-store", version = "0.1.0" }
 tokio = { version = "1.48", features = ["full"] }
 axum = { version = "0.8.6", features = ["form", "query"] }
 tower = { version = "0.5", features = ["util"] }
@@ -28,7 +28,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "cookies"] }
 url = "2.5"
 ipnet = "2.11"
-maxminddb = "0.24"
+maxminddb = "0.32"
 argon2 = "0.5"
 rand = "0.8"
 hickory-resolver = { version = "0.26", default-features = false, features = ["system-config", "tokio"] }

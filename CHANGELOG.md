@@ -75,3 +75,14 @@
 - Verify 47 backend checks, 11 browser scenarios, real Stripe test-clock
   failure/recovery/replay/cancellation and controlled-inbox account/owner mail.
   Record remaining portal/public deployment evidence in the commercial runbook.
+
+
+## 2026-11-10 — Local operational gates (Priority 5)
+
+- Add cluster-wide request budgets, report leases and coordinated backup barriers.
+- Add private bounded metrics, OTLP and local dashboards/alert delivery.
+- Add encrypted cross-store snapshots, isolated restore/replay and recovery timers.
+- Add verified operator-tool pins, dependency/license/secret/runtime scans,
+  non-root minimal runtime and Linux/private-CA checks.
+- Add isolated1M resident and1M/10M/100M monthly-arrival validation profiles;
+  preserve exact metering and report counts. Record external deployment gates.

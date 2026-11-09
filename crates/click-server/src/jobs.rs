@@ -493,6 +493,13 @@ pub async fn worker(
         if *shutdown.borrow() {
             break;
         }
+        let _maintenance = match store.maintenance_guard().await {
+            Ok(Some(guard)) => guard,
+            _ => {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
+        };
         for result in [
             crate::commercial::run(&store, "deletion", process_deletion(&store)).await,
             crate::commercial::run(&store, "exports", process_export(&store)).await,
@@ -503,6 +510,9 @@ pub async fn worker(
             }
         }
         if ticks.is_multiple_of(30) {
+            if crate::operations::prune(&store).await.is_err() {
+                tracing::warn!("Operational budget cleanup failed");
+            }
             if let Err(error) = enforce_retention(&store).await {
                 tracing::error!(%error,"retention maintenance failed");
             }

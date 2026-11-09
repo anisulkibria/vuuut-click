@@ -291,7 +291,7 @@ pub async fn authorize_report(
     state: &AppState,
     headers: &HeaderMap,
     site_id: Uuid,
-) -> AppResult<(Website, Role, crate::TenantPermit)> {
+) -> AppResult<(Website, Role, crate::operations::ReportPermit)> {
     let (site, role) = authorize_site(state, headers, site_id, false).await?;
     let permit = state
         .tenant_queries
@@ -301,6 +301,10 @@ pub async fn authorize_report(
             message:
                 "This workspace already has several reports running. Please try again in a moment.",
         })?;
+    let permit = state
+        .operations
+        .report(&state.store, site.organization_id, permit)
+        .await?;
     Ok((site, role, permit))
 }
 

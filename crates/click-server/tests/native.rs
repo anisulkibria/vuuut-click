@@ -2,12 +2,11 @@ mod support;
 use base64::Engine;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use reqwest::{Client, StatusCode};
-use rsa::{
-    pkcs8::{EncodePrivateKey, LineEnding},
-    traits::PublicKeyParts,
-    RsaPrivateKey, RsaPublicKey,
-};
 use serde_json::{json, Value};
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+};
 use support::Harness;
 use uuid::Uuid;
 
@@ -17,16 +16,38 @@ struct Signer {
 }
 impl Signer {
     fn new() -> Self {
-        let private = RsaPrivateKey::new(&mut rand::rngs::OsRng, 2048).unwrap();
-        let public = RsaPublicKey::from(&private);
+        // Generate ephemeral test-only keys with the system OpenSSL provider.
+        // No private-key material is written to disk or command arguments.
+        let generated = Command::new("openssl")
+            .args([
+                "genpkey",
+                "-algorithm",
+                "RSA",
+                "-pkeyopt",
+                "rsa_keygen_bits:2048",
+                "-pkeyopt",
+                "rsa_keygen_pubexp:65537",
+            ])
+            .output()
+            .unwrap();
+        assert!(generated.status.success());
+        let private = generated.stdout;
+        let mut child = Command::new("openssl")
+            .args(["rsa", "-noout", "-modulus"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(&private).unwrap();
+        let modulus = child.wait_with_output().unwrap();
+        assert!(modulus.status.success());
+        let modulus = String::from_utf8(modulus.stdout).unwrap();
+        let n = hex::decode(modulus.trim().strip_prefix("Modulus=").unwrap()).unwrap();
         let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD;
-        let jwks = json!({"keys":[{"kid":"cms-test","kty":"RSA","alg":"RS256","use":"sig","n":b64.encode(public.n().to_bytes_be()),"e":b64.encode(public.e().to_bytes_be())}]});
         Self {
-            key: EncodingKey::from_rsa_pem(
-                private.to_pkcs8_pem(LineEnding::LF).unwrap().as_bytes(),
-            )
-            .unwrap(),
-            jwks,
+            key: EncodingKey::from_rsa_pem(&private).unwrap(),
+            jwks: json!({"keys":[{"kid":"cms-test","kty":"RSA","alg":"RS256","use":"sig","n":b64.encode(n),"e":b64.encode([1,0,1])}]}),
         }
     }
     fn token(&self, base: &str, origin: &str, site: Uuid, changes: Value) -> String {

@@ -6,11 +6,12 @@ COPY migrations ./migrations
 COPY dashboard ./dashboard
 COPY tracker/dist ./tracker/dist
 COPY docs ./docs
+ENV CARGO_BUILD_JOBS=1
 RUN cargo build --release --locked -p click-server
 
-FROM debian:12.12-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/* && useradd --uid 10001 --create-home click
+FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=builder /build/target/release/click-server /usr/local/bin/click-server
+WORKDIR /app
 USER 10001:10001
 ENV BIND=0.0.0.0:8082
 EXPOSE 8082

@@ -16,6 +16,12 @@ services:
       CLICKHOUSE_DATABASE: click
       GEOIP_PATH: /geoip/GeoLite2-Country.mmdb
       RUST_LOG: click_server=info,tower_http=info
+      DISTRIBUTED_LIMITS: "true"
+      ABUSE_HASH_KEY: ${ABUSE_HASH_KEY:?Set a shared random 32-byte hex key}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?Set a private random scrape token}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel:4318}
+      OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-0.1}
+      STRIPE_PORTAL_CONFIGURATION: ${STRIPE_PORTAL_CONFIGURATION:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICES_JSON: ${STRIPE_PRICES_JSON:-{}}
@@ -25,16 +31,11 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Set to the actual Caddy network when enabling forwarding; never use 0.0.0.0/0.
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:?Set only the trusted Caddy network CIDR}
     volumes: ["../data/geoip:/geoip:ro"]
     depends_on:
       postgres: {condition: service_healthy}
       clickhouse: {condition: service_healthy}
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8082/readyz"]
-      interval: 30s
-      timeout: 15s
-      retries: 3
     mem_limit: 1g
     cpus: 2
     security_opt: ["no-new-privileges:true"]
@@ -62,7 +63,7 @@ services:
       CLICKHOUSE_DB: click
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-    volumes: ["ch_data:/var/lib/clickhouse"]
+    volumes: ["ch_data:/var/lib/clickhouse", "./clickhouse/50-memory-bounds.xml:/etc/clickhouse-server/users.d/50-vuuut-click-memory.xml:ro"]
     healthcheck:
       test: ["CMD-SHELL", "clickhouse-client --user click --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
       interval: 5s

@@ -652,6 +652,9 @@ pub async fn backend_event(
     clean.currency = currency;
     clean.newsletter_id = edition;
     clean.recipient_id = recipient;
+    s.operations
+        .collection(&s.store, site.organization_id, 1)
+        .await?;
     let accepted = s
         .store
         .accept_integration(&site, vec![clean], &click_core::digest(token))
