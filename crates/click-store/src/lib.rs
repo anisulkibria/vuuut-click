@@ -41,6 +41,18 @@ pub struct EventRow {
     pub amount_minor: i64,
     #[serde(default)]
     pub currency: String,
+    #[serde(default = "unknown_mode")]
+    pub visitor_mode: String,
+    #[serde(default = "unknown_os")]
+    pub os: String,
+    #[serde(default)]
+    pub engagement_ms: u32,
+    #[serde(default)]
+    pub scroll_percent: u8,
+    #[serde(default)]
+    pub newsletter_id: String,
+    #[serde(default)]
+    pub recipient_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -112,6 +124,10 @@ impl Store {
             (
                 "0002",
                 include_str!("../../../migrations/clickhouse/0002_extended_events.sql"),
+            ),
+            (
+                "0003",
+                include_str!("../../../migrations/clickhouse/0003_richer_reports.sql"),
             ),
         ] {
             let checksum = click_core::digest(sql);
@@ -251,6 +267,12 @@ impl Store {
                 utm_campaign: e.utm_campaign,
                 device: device.into(),
                 browser: browser.into(),
+                visitor_mode: e.visitor_mode,
+                os: operating_system(&agent).into(),
+                engagement_ms: e.engagement.as_ref().map(|e| e.duration_ms).unwrap_or(0),
+                scroll_percent: e.engagement.as_ref().map(|e| e.scroll_percent).unwrap_or(0),
+                newsletter_id: e.newsletter_id,
+                recipient_id: e.recipient_id,
                 occurred_ms: e.occurred_at_ms.unwrap_or(now.timestamp_millis()),
                 metric_name: e.vital.as_ref().map(|v| v.name.clone()).unwrap_or_default(),
                 metric_id: e
@@ -359,6 +381,16 @@ impl Store {
             .bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(event).bind(start).bind(end).fetch_one().await?;
         Ok(count.count)
     }
+    pub async fn goal_sessions(
+        &self,
+        site: &Website,
+        event: &str,
+        start: u32,
+        end: u32,
+    ) -> Result<u64> {
+        let count:Count=self.ch.query("WITH base AS (SELECT session_id,name FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?)) SELECT uniqExact(session_id) AS count FROM base WHERE name=? AND session_id IN (SELECT session_id FROM base WHERE name='pageview')").bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(start).bind(end).bind(event).fetch_one().await?;
+        Ok(count.count)
+    }
     pub async fn breakdown(
         &self,
         site: &Website,
@@ -369,7 +401,7 @@ impl Store {
         // Only compile-time identifiers enter SQL. All values are bound by the official client.
         let column = dimension.column();
         let filter = if matches!(dimension, Dimension::Events) {
-            "name NOT IN ('pageview','web_vital')"
+            "name NOT IN ('pageview','web_vital','web_engagement')"
         } else {
             "name='pageview'"
         };
@@ -419,6 +451,7 @@ pub enum Dimension {
     Devices,
     Browsers,
     Events,
+    OperatingSystems,
 }
 impl Dimension {
     pub fn parse(s: &str) -> Option<Self> {
@@ -430,6 +463,7 @@ impl Dimension {
             "devices" => Some(Self::Devices),
             "browsers" => Some(Self::Browsers),
             "events" => Some(Self::Events),
+            "operating_systems" => Some(Self::OperatingSystems),
             _ => None,
         }
     }
@@ -442,6 +476,58 @@ impl Dimension {
             Self::Devices => "device",
             Self::Browsers => "browser",
             Self::Events => "name",
+            Self::OperatingSystems => "os",
+        }
+    }
+}
+
+/// Coarse categories only; the original user agent is never persisted.
+fn operating_system(agent: &str) -> &'static str {
+    if agent.contains("android") {
+        "Android"
+    } else if agent.contains("iphone") || agent.contains("ipad") || agent.contains("ipod") {
+        "iOS"
+    } else if agent.contains("windows") {
+        "Windows"
+    } else if agent.contains("cros") {
+        "ChromeOS"
+    } else if agent.contains("macintosh") || agent.contains("mac os") {
+        "macOS"
+    } else if agent.contains("linux") {
+        "Linux"
+    } else {
+        "Unknown"
+    }
+}
+
+fn unknown_mode() -> String {
+    "unknown".into()
+}
+fn unknown_os() -> String {
+    "Unknown".into()
+}
+
+#[cfg(test)]
+mod os_tests {
+    #[test]
+    fn pending_events_from_older_builds_remain_unclassified() {
+        let row:super::EventRow=serde_json::from_value(serde_json::json!({"organization_id":"org","website_id":"site","event_id":"event","timestamp":1,"session_id":"session","visitor_id":"visitor","name":"pageview","path":"/","country":"ZZ","referrer":"","utm_source":"","utm_medium":"","utm_campaign":"","device":"Desktop","browser":"Unknown"})).unwrap();
+        assert_eq!(row.visitor_mode, "unknown");
+        assert_eq!(row.os, "Unknown");
+        assert_eq!(row.engagement_ms, 0);
+    }
+    #[test]
+    fn overlapping_user_agents_resolve_to_coarse_categories() {
+        for (agent, expected) in [
+            ("mozilla iphone cpu iphone os like mac os x", "iOS"),
+            ("mozilla linux android", "Android"),
+            ("mozilla cros linux", "ChromeOS"),
+            ("mozilla windows nt", "Windows"),
+            ("mozilla macintosh mac os", "macOS"),
+            ("mozilla linux x11", "Linux"),
+            ("", "Unknown"),
+        ] {
+            assert_eq!(super::operating_system(agent), expected);
         }
     }
 }

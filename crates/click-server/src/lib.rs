@@ -3,14 +3,18 @@ pub mod api;
 pub mod auth;
 pub mod billing;
 pub mod config;
+pub mod costs;
 pub mod dashboard;
 pub mod demo;
+pub mod explore;
+mod explore_ui;
 pub mod insights;
 pub mod jobs;
 pub mod landing;
 pub mod mail;
 pub mod manage;
 pub mod native;
+pub mod newsletters;
 pub mod owner;
 pub mod owner_security;
 pub mod settings;
@@ -377,6 +381,9 @@ async fn html_errors(req: Request, next: Next) -> Response {
 pub fn app(state: AppState) -> Router {
     Router::new()
         .merge(native::router())
+        .merge(explore::router())
+        .merge(costs::router())
+        .route("/v1/websites/{id}/newsletters", get(newsletters::report))
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(api::ready))
         .route("/", get(landing::home))
@@ -452,6 +459,7 @@ pub fn app(state: AppState) -> Router {
         .route("/dashboard", get(dashboard::overview))
         .route("/insights", get(insights::page))
         .route("/insights/action", post(insights::action))
+        .route("/insights/cost", post(insights::record_cost))
         .route(
             "/websites",
             get(dashboard::websites).post(dashboard::create_website),

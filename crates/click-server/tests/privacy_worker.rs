@@ -36,6 +36,12 @@ async fn retention_discards_backfilled_pending_events_and_private_mail_delivery(
         metric_value: 0.0,
         amount_minor: 0,
         currency: String::new(),
+        visitor_mode: "provided".into(),
+        os: "Unknown".into(),
+        engagement_ms: 0,
+        scroll_percent: 0,
+        newsletter_id: String::new(),
+        recipient_id: String::new(),
     };
     let mut recent = old.clone();
     recent.event_id = "recent".into();

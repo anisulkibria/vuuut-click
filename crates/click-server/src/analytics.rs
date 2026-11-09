@@ -22,6 +22,11 @@ pub struct FunnelInput {
     pub steps: Vec<FunnelStep>,
     #[serde(default = "default_window")]
     pub window_seconds: i32,
+    #[serde(default = "default_scope")]
+    pub scope: String,
+}
+fn default_scope() -> String {
+    "session".into()
 }
 fn default_window() -> i32 {
     86400
@@ -32,12 +37,14 @@ pub struct Funnel {
     pub name: String,
     pub steps: serde_json::Value,
     pub window_seconds: i32,
+    pub scope: String,
 }
 fn validate(input: &FunnelInput) -> AppResult<()> {
     if input.name.trim().is_empty()
         || input.name.len() > 100
         || !(2..=8).contains(&input.steps.len())
         || !(60..=604800).contains(&input.window_seconds)
+        || !matches!(input.scope.as_str(), "session" | "visitor")
     {
         return Err(ApiError::bad(
             "A funnel needs a name, 2–8 steps and a window between 1 minute and 7 days",
@@ -45,7 +52,7 @@ fn validate(input: &FunnelInput) -> AppResult<()> {
     }
     for step in &input.steps {
         let valid = match step.kind.as_str() {
-            "page" => {
+            "page" | "page_prefix" => {
                 step.value.starts_with('/')
                     && step.value.len() <= 1024
                     && !step.value.contains(['?', '#'])
@@ -63,7 +70,7 @@ fn validate(input: &FunnelInput) -> AppResult<()> {
         };
         if !valid {
             return Err(ApiError::bad(
-                "Funnel steps must be a page path or an event name",
+                "Funnel steps must be an exact page, page_prefix or event name",
             ));
         }
     }
@@ -91,13 +98,14 @@ pub async fn create_funnel(
     let funnel = Uuid::new_v4();
     let steps = serde_json::to_value(&input.steps).map_err(ApiError::internal)?;
     let result = sqlx::query(
-        "INSERT INTO funnels(id,website_id,name,steps,window_seconds) VALUES($1,$2,$3,$4,$5)",
+        "INSERT INTO funnels(id,website_id,name,steps,window_seconds,scope) VALUES($1,$2,$3,$4,$5,$6)",
     )
     .bind(funnel)
     .bind(id)
     .bind(input.name.trim())
     .bind(steps)
     .bind(input.window_seconds)
+    .bind(&input.scope)
     .execute(&mut *tx)
     .await;
     if let Err(e) = result {
@@ -136,7 +144,7 @@ pub async fn list(
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<Vec<Funnel>>> {
     auth::authorize_site(&s, &h, id, false).await?;
-    Ok(Json(sqlx::query_as("SELECT id,name,steps,window_seconds FROM funnels WHERE website_id=$1 ORDER BY created_at LIMIT 100").bind(id).fetch_all(&s.store.pg).await?))
+    Ok(Json(sqlx::query_as("SELECT id,name,steps,window_seconds,scope FROM funnels WHERE website_id=$1 ORDER BY created_at LIMIT 100").bind(id).fetch_all(&s.store.pg).await?))
 }
 /// Change a funnel's name, steps or conversion window.
 ///
@@ -165,13 +173,14 @@ pub async fn update_funnel(
     // Scoped by website as well as id: a funnel id from another site must not
     // be reachable through a site this membership authorizes.
     let result = sqlx::query(
-        "UPDATE funnels SET name=$1,steps=$2,window_seconds=$3 WHERE id=$4 AND website_id=$5",
+        "UPDATE funnels SET name=$1,steps=$2,window_seconds=$3,scope=$6 WHERE id=$4 AND website_id=$5",
     )
     .bind(input.name.trim())
     .bind(steps)
     .bind(input.window_seconds)
     .bind(funnel)
     .bind(site.id)
+    .bind(&input.scope)
     .execute(&mut *tx)
     .await;
     match result {
@@ -250,12 +259,14 @@ pub struct FunnelReport {
     pub name: String,
     pub window_seconds: i32,
     pub steps: Vec<FunnelResult>,
+    pub scope: String,
 }
 #[derive(Serialize)]
 pub struct FunnelResult {
     pub kind: String,
     pub value: String,
     pub sessions: u64,
+    pub participants: u64,
     pub conversion_rate: f64,
     pub drop_off: u64,
 }
@@ -277,19 +288,27 @@ pub async fn funnel_report(
         name: funnel.name.clone(),
         steps: steps.clone(),
         window_seconds: funnel.window_seconds,
+        scope: funnel.scope.clone(),
     })?;
     let conditions = steps
         .iter()
         .map(|step| {
             if step.kind == "page" {
                 "(name='pageview' AND path=?)"
+            } else if step.kind == "page_prefix" {
+                "(name='pageview' AND startsWith(path,?))"
             } else {
                 "name=?"
             }
         })
         .collect::<Vec<_>>()
         .join(",");
-    let sql=format!("SELECT level,count() AS count FROM (SELECT session_id,toUInt64(windowFunnel(?, 'strict_increase')(toUInt64(occurred_ms),{conditions})) AS level FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) GROUP BY session_id) GROUP BY level");
+    let (participant, filter) = if funnel.scope == "visitor" {
+        ("visitor_id", "visitor_mode='provided'")
+    } else {
+        ("session_id", "1=1")
+    };
+    let sql=format!("SELECT level,count() AS count FROM (SELECT {participant},toUInt64(windowFunnel(?, 'strict_increase')(toUInt64(occurred_ms),{conditions})) AS level FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND {filter} GROUP BY {participant}) GROUP BY level");
     let mut query = store
         .ch
         .query(&sql)
@@ -325,7 +344,12 @@ pub async fn funnel_report(
         results.push(FunnelResult {
             kind: step.kind,
             value: step.value,
-            sessions: counts[index],
+            sessions: if funnel.scope == "session" {
+                counts[index]
+            } else {
+                0
+            },
+            participants: counts[index],
             conversion_rate: if first == 0 {
                 0.0
             } else {
@@ -338,6 +362,7 @@ pub async fn funnel_report(
         id: funnel.id,
         name: funnel.name,
         window_seconds: funnel.window_seconds,
+        scope: funnel.scope,
         steps: results,
     })
 }
@@ -349,7 +374,7 @@ pub async fn report(
 ) -> AppResult<Json<FunnelReport>> {
     let (site, _, _queries) = auth::authorize_report(&s, &h, id).await?;
     let funnel: Funnel = sqlx::query_as(
-        "SELECT id,name,steps,window_seconds FROM funnels WHERE id=$1 AND website_id=$2",
+        "SELECT id,name,steps,window_seconds,scope FROM funnels WHERE id=$1 AND website_id=$2",
     )
     .bind(funnel)
     .bind(id)
@@ -389,12 +414,12 @@ pub async fn journey_data(
     start: u32,
     end: u32,
 ) -> AppResult<Vec<Journey>> {
-    let sessions:Vec<SessionId>=store.ch.query("SELECT session_id FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND name!='web_vital' GROUP BY session_id ORDER BY max(occurred_ms) DESC,session_id LIMIT 25").bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(start).bind(end).fetch_all().await.map_err(ApiError::internal)?;
+    let sessions:Vec<SessionId>=store.ch.query("SELECT session_id FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND name NOT IN ('web_vital','web_engagement') GROUP BY session_id ORDER BY max(occurred_ms) DESC,session_id LIMIT 25").bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(start).bind(end).fetch_all().await.map_err(ApiError::internal)?;
     if sessions.is_empty() {
         return Ok(Vec::new());
     }
     let ids: Vec<String> = sessions.into_iter().map(|s| s.session_id).collect();
-    store.ch.query("SELECT session_id,argMin(country,occurred_ms) AS country,count() AS events,groupArraySorted(100)((occurred_ms,path,name)) AS steps FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND name!='web_vital' AND session_id IN ? GROUP BY session_id ORDER BY max(occurred_ms) DESC,session_id").bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(start).bind(end).bind(ids).fetch_all().await.map_err(ApiError::internal)
+    store.ch.query("SELECT session_id,argMin(country,occurred_ms) AS country,count() AS events,groupArraySorted(100)((occurred_ms,path,name)) AS steps FROM events FINAL WHERE organization_id=? AND website_id=? AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) AND name NOT IN ('web_vital','web_engagement') AND session_id IN ? GROUP BY session_id ORDER BY max(occurred_ms) DESC,session_id").bind(site.organization_id.to_string()).bind(site.id.to_string()).bind(start).bind(end).bind(ids).fetch_all().await.map_err(ApiError::internal)
 }
 pub async fn journeys(
     State(s): State<AppState>,
@@ -438,6 +463,7 @@ pub struct Revenue {
     pub currency: String,
     pub total_minor: String,
     pub payments: u64,
+    pub dimension_present: u8,
 }
 #[derive(Deserialize)]
 pub struct RevenueQuery {
@@ -454,20 +480,25 @@ pub async fn revenue_data(
     dimension: &str,
 ) -> AppResult<Vec<Revenue>> {
     let touch=match model{"first_touch"=>"touchpoints[1]","last_touch"=>"touchpoints[-1]","last_non_direct"=>"if(empty(arrayFilter(t->t.2!='Direct',touchpoints)),touchpoints[-1],arrayFilter(t->t.2!='Direct',touchpoints)[-1])",_=>return Err(ApiError::bad("Select a valid attribution model"))};
-    let (index, fallback) = match dimension {
-        "source" => (2, "Direct"),
-        "campaign" => (3, "No campaign"),
-        "landing" => (4, "Unattributed"),
-        _ => {
-            return Err(ApiError::bad(
-                "Select source, campaign or landing page attribution",
-            ))
-        }
-    };
+    let (index, fallback) =
+        match dimension {
+            "source" => (2, "Direct"),
+            "campaign" => (3, "No campaign"),
+            "landing" => (4, "Unattributed"),
+            "medium" => (5, "Unspecified"),
+            "channel" => (6, "Direct"),
+            "country" => (7, "Unknown"),
+            "device" => (8, "Unknown"),
+            _ => return Err(ApiError::bad(
+                "Select source, campaign, landing, medium, channel, country or device attribution",
+            )),
+        };
     let label =
         format!("if(empty(touchpoints) OR ({touch}).{index}='', '{fallback}', ({touch}).{index})");
-    let sql=format!("SELECT {label} AS label,currency,toString(sum(toDecimal128(amount_minor,0))) AS total_minor,countIf(amount_minor>0) AS payments FROM (SELECT purchases.*,arrayFilter(t->t.1<=purchases.occurred_ms AND t.1>=purchases.occurred_ms-2592000000,traffic.touches) AS touchpoints FROM (SELECT visitor_id,occurred_ms,currency,amount_minor FROM events FINAL WHERE organization_id=? AND website_id=? AND name IN ('server.payment','server.refund') AND amount_minor!=0 AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?)) AS purchases LEFT JOIN (SELECT visitor_id,arraySort(groupArray((started,source,campaign,landing))) AS touches FROM (SELECT visitor_id,session_id,min(occurred_ms) AS started,argMin(if(utm_source!='',utm_source,if(referrer!='',referrer,'Direct')),occurred_ms) AS source,argMin(utm_campaign,occurred_ms) AS campaign,argMin(path,occurred_ms) AS landing FROM events FINAL WHERE organization_id=? AND website_id=? AND name='pageview' AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) GROUP BY visitor_id,session_id) GROUP BY visitor_id) AS traffic USING visitor_id) GROUP BY label,currency ORDER BY currency,sum(toDecimal128(amount_minor,0)) DESC LIMIT 100");
-    store
+    let valid = format!("NOT(empty(touchpoints) OR ({touch}).{index}='')");
+    let channel = crate::explore::CHANNEL;
+    let sql=format!("SELECT {label} AS label,currency,toString(sum(toDecimal128(amount_minor,0))) AS total_minor,countIf(amount_minor>0) AS payments,toUInt8(min({valid})) AS dimension_present FROM (SELECT purchases.*,arrayFilter(t->t.1<=purchases.occurred_ms AND t.1>=purchases.occurred_ms-2592000000,traffic.touches) AS touchpoints FROM (SELECT visitor_id,occurred_ms,currency,amount_minor FROM events FINAL WHERE organization_id=? AND website_id=? AND name IN ('server.payment','server.refund') AND amount_minor!=0 AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?)) AS purchases LEFT JOIN (SELECT visitor_id,arraySort(groupArray((started,source,campaign,landing,medium,channel,entry_country,entry_device))) AS touches FROM (SELECT visitor_id,session_id,min(occurred_ms) AS started,argMin(if(utm_source!='',utm_source,if(referrer!='',referrer,'Direct')),(occurred_ms,event_id)) AS source,argMin(utm_campaign,(occurred_ms,event_id)) AS campaign,argMin(path,(occurred_ms,event_id)) AS landing,argMin(utm_medium,(occurred_ms,event_id)) AS medium,{channel} AS channel,argMin(country,(occurred_ms,event_id)) AS entry_country,argMin(device,(occurred_ms,event_id)) AS entry_device FROM events FINAL WHERE organization_id=? AND website_id=? AND name='pageview' AND timestamp>=toDateTime(?) AND timestamp<toDateTime(?) GROUP BY visitor_id,session_id) GROUP BY visitor_id) AS traffic USING visitor_id) GROUP BY label,currency ORDER BY currency,sum(toDecimal128(amount_minor,0)) DESC LIMIT 1001");
+    let rows: Vec<Revenue> = store
         .ch
         .query(&sql)
         .bind(site.organization_id.to_string())
@@ -480,7 +511,13 @@ pub async fn revenue_data(
         .bind(end)
         .fetch_all()
         .await
-        .map_err(ApiError::internal)
+        .map_err(ApiError::internal)?;
+    if rows.len() > 1000 {
+        return Err(ApiError::bad(
+            "More than 1000 attribution groups; narrow the report period",
+        ));
+    }
+    Ok(rows)
 }
 pub async fn revenue(
     State(s): State<AppState>,
@@ -514,6 +551,8 @@ pub struct Conversion {
     pub amount_minor: Option<i64>,
     pub currency: Option<String>,
     pub occurred_at_ms: Option<i64>,
+    pub newsletter_id: Option<String>,
+    pub recipient_id: Option<String>,
 }
 pub async fn backend_event(
     State(s): State<AppState>,
@@ -544,6 +583,21 @@ pub async fn backend_event(
     {
         return Err(ApiError::bad(
             "Use a stable external event identifier and supported backend event kind",
+        ));
+    }
+    let newsletter = input.kind.starts_with("newsletter_");
+    let edition = input.newsletter_id.unwrap_or_default();
+    let recipient = input.recipient_id.unwrap_or_default();
+    let opaque = |v: &str| {
+        v.len() == 64
+            && v.bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    };
+    if (!edition.is_empty() || !recipient.is_empty())
+        && (!newsletter || !opaque(&edition) || !opaque(&recipient))
+    {
+        return Err(ApiError::bad(
+            "Newsletter grouping requires opaque edition and recipient hashes",
         ));
     }
     let monetary = matches!(input.kind.as_str(), "payment" | "refund");
@@ -584,6 +638,7 @@ pub async fn backend_event(
         utm_campaign: String::new(),
         occurred_at_ms: input.occurred_at_ms,
         vital: None,
+        engagement: None,
     }
     .clean(id, &site.origin)
     .map_err(|e| ApiError::bad(e.0))?;
@@ -595,6 +650,8 @@ pub async fn backend_event(
         amount
     };
     clean.currency = currency;
+    clean.newsletter_id = edition;
+    clean.recipient_id = recipient;
     let accepted = s
         .store
         .accept_integration(&site, vec![clean], &click_core::digest(token))

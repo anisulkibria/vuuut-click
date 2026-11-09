@@ -50,7 +50,9 @@ test('demo reports are distinct and workspace workflows work in the browser',asy
  await page.goto(`/settings?tab=billing&org=${org}`);await expect(page.getByRole('heading',{name:'Development billing mode'})).toBeVisible();
  await page.getByRole('combobox',{name:/Test plan/}).selectOption('pro');await page.getByRole('button',{name:'Apply test plan'}).click();await expect(page.locator('.settings-stat-grid')).toContainText('pro');
  await page.goto(`/settings?tab=privacy&org=${org}&site=${live.id}`);await page.getByRole('button',{name:'Create export'}).click();
+ await expect(page).toHaveURL(new RegExp(`/settings\\?tab=privacy&org=${org}&site=${live.id}$`));
  await expect.poll(async()=>{await page.reload();return page.getByRole('link',{name:'Download CSV'}).count();},{timeout:15000}).toBe(1);
+ expect((await(await page.request.get(`/v1/websites/${live.id}/exports`)).json()).length).toBe(1);
  const download=page.waitForEvent('download');await page.getByRole('link',{name:'Download CSV'}).click();expect((await download).suggestedFilename()).toMatch(/\.csv$/);
  for(const tab of ['workspaces','team','websites','keys','billing','privacy','account']){
   await page.goto(`/settings?tab=${tab}&org=${org}&site=${live.id}`);expect(await page.locator('h1').count()).toBe(1);

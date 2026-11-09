@@ -187,3 +187,30 @@ run with SQLite or `GHOST_TEST_MYSQL_URL`; hosting has SQLite revision tests
 and `PRO_TEST_MYSQL_URL` migration/trigger tests. See CONTINUE.md for the latest
 completed results. No external public deployment, commercial release or
 independent security review is implied by these local integration checks.
+
+## Extended reports and measurement preferences
+
+The native CMS page now has traffic, content/engagement, returning-visitor,
+newsletter-edition, campaign-return and performance views. Each extra view loads
+its own report through the same dedicated staff exchange; credentials stay
+server-side. Owners can record supplied advertising costs, with source/reference
+versions and exact-origin protection. This does not issue a charge or contact
+an advertising provider. CMS titles are resolved locally from opaque edition
+keys; no title or raw member ID is sent to Click.
+
+CMS migration **0040** adds edition/recipient context to transactional newsletter
+facts and edition-bound signed redirect links. Recipient hashes are scoped to
+one website and edition. Legacy links without captured delivery context remain
+unassigned. Repeated opens/clicks do not inflate recipient rates. MySQL's member
+open-rate update uses portable rounding and calculates before incrementing its
+counter, preserving the same rate as SQLite.
+
+Standalone Owners can update measurement preferences without reentering a saved
+credential. Engagement is opt-in and consumes events. Persistent browser IDs
+require visitor consent; session-only identity remains the default. Managed
+hosting can set `click.engagement` and `click.persistentIdentity` in its private
+configuration; the latter requires `consentRequired:true`. Only public policy
+attributes enter the theme. Automatic CMS payments still do not stitch members
+to browser sessions; campaign attribution/ROI needs explicit consented backend
+association plus recorded cost coverage. Upgrade Click before the matching CMS/
+hosting binaries so the additive report and fact contracts are available.

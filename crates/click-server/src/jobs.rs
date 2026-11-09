@@ -313,7 +313,7 @@ pub async fn process_export(store: &Store) -> anyhow::Result<()> {
     if rows.len() > 100000 {
         sqlx::query("UPDATE export_jobs SET state='failed',error='More than 100,000 events; select a shorter period' WHERE id=$1").bind(id).execute(&mut *tx).await?;
     } else {
-        let mut csv=String::from("timestamp_utc,event_id,event,path,country,referrer,utm_source,utm_medium,utm_campaign,device,browser,occurred_ms,metric,metric_value,amount_minor,currency\r\n");
+        let mut csv=String::from("timestamp_utc,event_id,event,path,country,referrer,utm_source,utm_medium,utm_campaign,device,browser,occurred_ms,metric,metric_value,amount_minor,currency,visitor_mode,operating_system,visible_ms,maximum_scroll_percent,newsletter_edition\r\n");
         for row in rows {
             let time = chrono::DateTime::from_timestamp(row.timestamp as i64, 0)
                 .unwrap()
@@ -335,6 +335,11 @@ pub async fn process_export(store: &Store) -> anyhow::Result<()> {
                 row.metric_value.to_string(),
                 row.amount_minor.to_string(),
                 row.currency,
+                row.visitor_mode,
+                row.os,
+                row.engagement_ms.to_string(),
+                row.scroll_percent.to_string(),
+                row.newsletter_id,
             ];
             csv.push_str(
                 &cells
@@ -418,6 +423,15 @@ pub async fn process_deletion(store: &Store) -> anyhow::Result<()> {
     Ok(())
 }
 pub async fn enforce_retention(store: &Store) -> anyhow::Result<()> {
+    // Coordinate sweeps across serving/worker processes sharing this database.
+    let mut sweep = store.pg.begin().await?;
+    let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(78422916)")
+        .fetch_one(&mut *sweep)
+        .await?;
+    if !acquired {
+        return Ok(());
+    }
+
     let sites:Vec<(Uuid,Uuid,i32)>=sqlx::query_as("SELECT w.id,w.organization_id,least(w.retention_days,p.retention_days) FROM websites w JOIN subscriptions s ON s.organization_id=w.organization_id JOIN plans p ON p.id=s.plan_id WHERE NOT w.is_demo AND w.deletion_requested_at IS NULL").fetch_all(&store.pg).await?;
     for (site, org, days) in sites {
         let cutoff = ((chrono::Utc::now().timestamp() - days as i64 * 86400) / 3600 * 3600) as u32;
@@ -427,7 +441,21 @@ pub async fn enforce_retention(store: &Store) -> anyhow::Result<()> {
             .fetch_optional(&mut *tx)
             .await?;
         sqlx::query("UPDATE event_outbox SET state='discarded',payload=NULL WHERE website_id=$1 AND (payload->>'timestamp')::bigint<$2 AND state IN ('pending','dead')").bind(site).bind(cutoff as i64).execute(&mut *tx).await?;
+        sqlx::query(
+            "DELETE FROM campaign_costs WHERE website_id=$1 AND day < (to_timestamp($2) AT TIME ZONE 'UTC')::date",
+        )
+        .bind(site)
+        .bind(cutoff as f64)
+        .execute(&mut *tx)
+        .await?;
         for (table, column) in [("events", "timestamp"), ("pageviews_hourly", "bucket")] {
+            // A no-op DELETE still rewrites shared parts, including expensive
+            // aggregate states. Most sites have no expired records to remove.
+            let expired:click_store::Count=store.ch.query(&format!("SELECT count() AS count FROM (SELECT 1 FROM {table} WHERE organization_id=? AND website_id=? AND {column}<toDateTime(?) LIMIT 1)"))
+                .bind(org.to_string()).bind(site.to_string()).bind(cutoff).fetch_one().await?;
+            if expired.count == 0 {
+                continue;
+            }
             store.ch.query(&format!("ALTER TABLE {table} DELETE WHERE organization_id=? AND website_id=? AND {column}<toDateTime(?) SETTINGS mutations_sync=2")).bind(org.to_string()).bind(site.to_string()).bind(cutoff).execute().await?;
         }
         tx.commit().await?;
@@ -438,6 +466,7 @@ pub async fn enforce_retention(store: &Store) -> anyhow::Result<()> {
     sqlx::query("DELETE FROM sessions WHERE expires_at<now()")
         .execute(&store.pg)
         .await?;
+    sweep.commit().await?;
     Ok(())
 }
 pub async fn worker(

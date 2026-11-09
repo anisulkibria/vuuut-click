@@ -37,7 +37,7 @@ A complete recovery point includes PostgreSQL (control, credentials, dedup ledge
 
 Encrypted off-site S3 backup scripts and automated restore verification are not yet implemented; do not operate commercially before this gate is complete. For local development, named Docker volumes survive stops; `down -v` destroys them and is intentionally never used by run.sh.
 
-Migrations apply before the listener starts. PostgreSQL SQLx migration history is versioned/checksummed. ClickHouse migrations 0001/0002 are idempotent, serialized with a PostgreSQL advisory lock and recorded with checksums in control_migrations. Future schema changes require new migration versions and backfill tests. Take verified backups before every migration; pin a container tag for rollback. Roll back binaries only across compatible schemas; destructive schema rollback requires the tested restore procedure. Do not drop tables or mutate sibling Ghost schemas.
+Migrations apply before the listener starts. PostgreSQL SQLx migration history is versioned/checksummed. ClickHouse migrations 0001–0003 are idempotent, serialized with a PostgreSQL advisory lock and recorded with checksums in control_migrations. Future schema changes require new migration versions and backfill tests. Take verified backups before every migration; pin a container tag for rollback. Roll back binaries only across compatible schemas; destructive schema rollback requires the tested restore procedure. Do not drop tables or mutate sibling Ghost schemas.
 
 ## Transactional mail and billing configuration
 
@@ -54,8 +54,8 @@ Grant access only through `click-server grant-owner <existing-account-email>`, t
 Team invitations use the same transactional mail outbox and transport. The UI says when a message is queued or when a link must be shared manually. Monitor delivery failures before assuming that an invite reached an inbox.
 
 
-Native integration is opt-in. Deploy the matching CMS (0038–0039) and hosting (0004–0005)
-builds alongside Click's additive PostgreSQL migration 0010. Register the
+Native integration is opt-in. Deploy the matching CMS (0038–0040) and hosting (0004–0005)
+builds alongside Click's additive PostgreSQL migrations 0010–0011. Register the
 platform via the operator CLI and keep its credential only in private platform
 configuration; see GHOST_INTEGRATION.md. Restart hosting after platform key or
 plan-map changes to reconcile new revisions. Back up mapping/tombstone state
@@ -63,3 +63,16 @@ with the control DB. A credential rotation/disconnect must be acknowledged;
 retry uncertain operations using the persisted replacement/version. Public TLS,
 DNS, real payment provider/SMTP delivery and independent SSO review remain
 external validation gates.
+
+
+Priority 3 upgrades apply PostgreSQL 0011 and ClickHouse 0003 before the
+listener starts; deploy Click before CMS 0040 and the updated hosting binary.
+Existing rows remain legacy/unclassified for identity and have no invented
+engagement or newsletter history. Campaign costs live in PostgreSQL and must
+be included in backups; retention/deletion applies to them too. Refresh only
+explicitly labeled demo sites with `seed-demo` to see sample reports.
+
+Retention sweeps share a PostgreSQL advisory lock across processes and check
+for expired rows before scheduling ClickHouse mutations. Empty sweeps no
+longer rewrite shared aggregate parts. This avoids redundant local work;
+distributed abuse/report budgets remain a separate release gate.

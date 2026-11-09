@@ -119,8 +119,36 @@ pub async fn seed(store: &Store, email: &str) -> Result<Uuid> {
                     metric_value: 0.0,
                     amount_minor: 0,
                     currency: String::new(),
+                    visitor_mode: "provided".into(),
+                    os: if i % 5 < 2 {
+                        if i % 2 == 0 {
+                            "Android"
+                        } else {
+                            "iOS"
+                        }
+                    } else if i % 9 == 0 {
+                        "iOS"
+                    } else if i % 2 == 0 {
+                        "Windows"
+                    } else {
+                        "macOS"
+                    }
+                    .into(),
+                    engagement_ms: 0,
+                    scroll_percent: 0,
+                    newsletter_id: String::new(),
+                    recipient_id: String::new(),
                 };
                 insert.write(&row).await?;
+                if i % 4 != 0 {
+                    let mut engagement = row.clone();
+                    engagement.event_id = digest(&format!("{site}:engagement:{sequence}"));
+                    engagement.name = "web_engagement".into();
+                    engagement.engagement_ms = 4000 + ((i + step) % 20) as u32 * 1000;
+                    engagement.scroll_percent = ((i * 13 + step * 17) % 101) as u8;
+                    engagement.occurred_ms += 250;
+                    insert.write(&engagement).await?;
+                }
                 if step == pages - 1 && i % 3 == 0 {
                     let mut event = row.clone();
                     sequence += 1;
@@ -173,7 +201,78 @@ pub async fn seed(store: &Store, email: &str) -> Result<Uuid> {
             }
         }
     }
+    // Explicitly fictional newsletter editions, scoped within this demo only.
+    for edition in 0..4 {
+        let stamp = (midnight - chrono::Duration::days(edition * 7)).timestamp() as u32;
+        let edition_id = digest(&format!("{site}:newsletter:{edition}"));
+        for recipient in 0..(24 + edition * 3) {
+            let mut row = EventRow {
+                organization_id: org.to_string(),
+                website_id: site.to_string(),
+                event_id: String::new(),
+                timestamp: stamp,
+                session_id: String::new(),
+                visitor_id: String::new(),
+                name: String::new(),
+                path: "/newsletter".into(),
+                country: "ZZ".into(),
+                referrer: String::new(),
+                utm_source: String::new(),
+                utm_medium: String::new(),
+                utm_campaign: String::new(),
+                device: "Desktop".into(),
+                browser: "Unknown".into(),
+                occurred_ms: stamp as i64 * 1000,
+                metric_name: String::new(),
+                metric_id: String::new(),
+                metric_value: 0.0,
+                amount_minor: 0,
+                currency: String::new(),
+                visitor_mode: "session".into(),
+                os: "Unknown".into(),
+                engagement_ms: 0,
+                scroll_percent: 0,
+                newsletter_id: edition_id.clone(),
+                recipient_id: digest(&format!(
+                    "{site}:newsletter:{edition}:recipient:{recipient}"
+                )),
+            };
+            for (kind, offset, enabled) in [
+                ("newsletter_sent", 0, true),
+                ("newsletter_open", 60, recipient % 4 != 0),
+                ("newsletter_click", 120, recipient % 3 == 0),
+            ] {
+                if !enabled {
+                    continue;
+                }
+                row.event_id = digest(&format!("{site}:newsletter:{edition}:{recipient}:{kind}"));
+                row.session_id = row.event_id.clone();
+                row.visitor_id = row.event_id.clone();
+                row.name = format!("server.{kind}");
+                row.timestamp = (stamp + offset).min(now.timestamp() as u32);
+                row.occurred_ms = row.timestamp as i64 * 1000;
+                insert.write(&row).await?;
+            }
+        }
+    }
     insert.end().await?;
+    sqlx::query("DELETE FROM campaign_costs WHERE website_id=$1")
+        .bind(site)
+        .execute(&mut *tx)
+        .await?;
+    let campaigns: std::collections::BTreeSet<_> = sources
+        .iter()
+        .map(|s| s.3)
+        .filter(|s| !s.is_empty())
+        .collect();
+    for day in 0..30 {
+        let date = (midnight - chrono::Duration::days(day)).date_naive();
+        for campaign in &campaigns {
+            let reference = digest(&format!("{site}:demo-cost:{date}:{campaign}"));
+            sqlx::query("INSERT INTO campaign_costs(id,website_id,reference_hash,revision,request_hash,day,campaign,currency,amount_minor,source) VALUES($1,$2,$3,1,$3,$4,$5,'USD',$6,'demo')").bind(Uuid::new_v4()).bind(site).bind(reference).bind(date).bind(campaign).bind(400+day%4*100).execute(&mut *tx).await?;
+        }
+    }
+
     for (name, event) in [
         ("Newsletter signups", "newsletter_signup"),
         ("Trial starts", "trial_started"),

@@ -59,3 +59,14 @@ to browser sessions. Transactional source outboxes transmit hashed event IDs
 and minimized facts only. See GHOST_INTEGRATION.md for exact retry/dead-letter,
 consent and supported provider event behavior. Independent SSO/security review
 and production service/restore/load gates remain required.
+
+
+Priority 3 telemetry remains opt-in and obeys consent, DNT and GPC. Coarse OS
+categories are stored without raw user agents. Newsletter edition/recipient
+hashes are scoped to the website and edition, cannot join different editions
+or browser sessions, and recipient hashes are excluded from CSV exports.
+Native staff read tokens remain read-only. Cost writes require an active
+website integration credential or a managing customer session with exact
+Origin, with authorization rechecked under the workspace lock. Source
+references are hashed and revisions reject conflicting/stale updates; supplied
+costs are labeled with their provenance, not presented as provider-verified.

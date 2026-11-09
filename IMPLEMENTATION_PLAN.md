@@ -7,8 +7,8 @@ This is a new application. Production release remains gated on the items below.
 1. **Inspection and design** — inspected Vuuut, Vuuut-pro and upstream Tinybird. Architecture, schema, security and API decisions documented. Complete.
 2. **Real analytics vertical slice — complete for local development** — register account → create website → verify domain → browser tracker → validation and local MMDB enrichment → transactional durable acceptance → retrying worker → ClickHouse → authenticated overview/country dashboard. Verified using real PostgreSQL/ClickHouse and browser tests, including outage/replay correctness, isolation and trusted forwarding. Production geolocation still requires an operator-supplied licensed MMDB.
 3. **Basic SaaS foundation — implemented** — registration/login/logout, memberships and RBAC, website credentials, transactional quota metering, event-match goals, scoped APIs, setup, light/dark/system themes. Roles and cross-tenant negative tests pass. Team invitations, organization lifecycle and account/credential/privacy settings are now implemented and tested locally; production hardening remains gated.
-4. **Advanced analytics — standalone checkpoint implemented** — ordered session funnels, journeys, first/last/non-direct net revenue attribution, Web Vitals percentiles, exports, per-tenant deletion/retention. Real-database and browser validation completed. Newsletter event ingestion exists; specialized newsletter dashboards, broader engagement/cohort reports remain pending; goal/funnel editing is complete.
-5. **Ghost integration — Priority 2 implementation complete; final regression verification in progress** — versioned idempotent provisioning, domain/lifecycle/entitlement sync, pinned RS256/JWKS staff exchange, signed transactional CMS outboxes, retries/rotation/disconnect, consent-aware tracker injection and native Admin reports are implemented in all three repositories. Terminal erasure and fresh-mapping restoration are covered. See docs/GHOST_INTEGRATION.md and CONTINUE.md for final verification evidence.
+4. **Advanced analytics — Priority 3 implemented** — ordered session funnels, journeys, first/last/non-direct net revenue attribution, Web Vitals percentiles, exports, per-tenant deletion/retention. Real-database and browser validation completed. Period comparisons, richer content/acquisition/event reports, optional visible-time/scroll tracking, provided-identity retention/cohorts, visitor/prefix funnels, newsletter editions and currency-separated campaign-cost/ROI reporting are implemented; goal/funnel editing is complete. See docs/ANALYTICS_METRICS.md for coverage semantics.
+5. **Ghost integration — Priority 2 complete and verified** — versioned idempotent provisioning, domain/lifecycle/entitlement sync, pinned RS256/JWKS staff exchange, signed transactional CMS outboxes, retries/rotation/disconnect, consent-aware tracker injection and native Admin reports are implemented in all three repositories. Terminal erasure and fresh-mapping restoration are covered. See docs/GHOST_INTEGRATION.md and CONTINUE.md for final verification evidence.
 6. **Commercial operations — adapters implemented, release gates pending** — Stripe checkout/portal/signed webhooks and entitlement dedup, account verification/reset, team invitation links, private local/SMTP mail and owner management controls implemented and locally tested. Real SMTP/payment-account validation, distributed abuse controls, optional NATS scaling, OTel, monitoring, encrypted backups/restore drills, scanning and 1M/10M/100M benchmarks remain pending.
 
 ## Unknowns / external configuration
@@ -23,7 +23,7 @@ This is a new application. Production release remains gated on the items below.
 - `cargo fmt --all --check`: passed.
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed.
 - `cargo test --workspace -- --include-ignored`: 7 unit tests + 1 real-stack integration test passed, none ignored in this run. Real integration uses isolated PostgreSQL and ClickHouse databases, repeated migrations, real test MMDB IPv4/IPv6 lookups, outage recovery, replay between stores, zero duplicate billing, tenant isolation, public-token/key misuse, viewer permissions, CSRF and key revocation.
-- `npm run check` and `npm run build`: passed; tracker IIFE 3,888 bytes uncompressed.
+- `npm run check` and `npm run build`: passed; tracker IIFE was 3,888 bytes at this historical checkpoint; the current Priority 3 bundle is 5,519 bytes uncompressed.
 - Playwright: 4 end-to-end tests passed against the running Rust app and real databases. Verified registration, website creation, real browser page views/custom events, dashboard values, goal completions, dark theme, 390px mobile overflow, logout, required consent, DNT and SPA routing/query redaction. Used the existing Chromium headless executable through CHROMIUM_EXECUTABLE_PATH; default browser download remains environment-dependent. Added a same-browser owner/user test proving simultaneous login, logout in both directions, endpoint role restrictions and the `/owner` cookie path.
 - `bash -n run.sh` and both Compose configuration validations: passed.
 - `./run.sh` launched the database stack and Rust application; `/signup` and `/readyz` returned HTTP 200. Keep this local server running for the user.
@@ -76,7 +76,7 @@ User asked to complete the main SaaS, then requested demo data, then explicitly 
 
 ## Remaining work after the pause
 
-Historical pause checkpoint: native adapters were unfinished here. They have since been implemented under Priority 2; follow the latest `CONTINUE.md` status. Further analytics breadth, distributed security budgets, independent MFA/security review, real external-service validation and operational release gates remain. Do not claim production readiness. Git transfers source/docs only; databases, accounts/passwords, `.env`, sessions and demo rows require a fresh setup or separate secure backup transfer.
+Historical pause checkpoint: native adapters were unfinished here. They have since been implemented under Priority 2; follow the latest `CONTINUE.md` status. Analytics breadth is now implemented under Priority 3. Distributed security budgets, independent MFA/security review, real external-service validation and operational release gates remain. Do not claim production readiness. Git transfers source/docs only; databases, accounts/passwords, `.env`, sessions and demo rows require a fresh setup or separate secure backup transfer.
 
 ## Final checkpoint verification — 2026-11-08
 
@@ -150,7 +150,7 @@ The user resumed and asked to finish Priority 1. Completed invitation email queu
 
 Verification: fmt/Clippy, 17 unit tests + 11 real-database integration tests with no ignored tests skipped, npm ci/check/build, and 6/6 Playwright scenarios. New coverage includes password contention, transactional invite mail, per-workspace budgets, ordered/deduplicated 1,200-event journeys capped at 100 steps, malformed/overload errors, contended website origin/DNS verification and role changes, MFA enrollment/replay/recovery/attempt limits/audience isolation and UI lifecycle alongside an independent customer session. Owner security screenshots inspected; local app remains usable on 8082. See CONTINUE.md for details and actual limits.
 
-Earlier entries about unfinished Priority 1 items and pauses are historical. Priority 2 native integration is implemented; see the latest verification section in CONTINUE.md. SMTP delivery against a real provider, distributed budgets, independent security/MFA review, protected database/backups, production deployment/load/restore and commercial release gates remain required. No production-readiness claim.
+Earlier entries about unfinished Priority 1 items and pauses are historical. Priority 2 native integration and Priority 3 analytics breadth are implemented; see the latest verification sections in CONTINUE.md. SMTP delivery against a real provider, distributed budgets, independent security/MFA review, protected database/backups, production deployment/load/restore and commercial release gates remain required. No production-readiness claim.
 
 ## Owner panel text sizing — 2026-11-08
 
@@ -159,3 +159,16 @@ Raised the seven owner overview/directory pages from 9px headers and 11px rows t
 Owner typography adjustment at the user’s request: reduced the first increase to 14px body/rows/controls, 13px labels/headers/buttons and 20px panel headings, with slightly tighter row padding.
 
 Further owner typography reduction requested by the user: 13px body/rows/controls, 12px labels/headers/buttons, 19px panel headings and 12px vertical row padding.
+
+
+### User-requested pause — 2026-11-09
+
+Priority 3 implementation is applied across all three local applications.
+Final checks: Click 39 tests (all real-store integrations included), CMS 73
+headless tests, real MySQL edition/outbox tests, three native bridge scenarios,
+strict Click Clippy and tracker check/build pass. The latest full browser suite
+is **8/9**, with a ClickHouse total-memory refusal on the engagement scenario's
+last comparison request; preceding measurement assertions pass. Rerun the full
+suite with heavy database/build work idle before declaring final verification
+complete. The user will commit/push and resume later; no further work is
+authorized during this pause. CONTINUE.md records restart details and evidence.

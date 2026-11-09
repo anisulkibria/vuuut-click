@@ -91,3 +91,64 @@ pageviews only and remains correct before ClickHouse merges. Eight authoritative
 CMS event kinds are aggregated independently of general top-100 event lists.
 Existing website read keys and native staff tokens authorize only their site,
 and normal report concurrency/period limits apply.
+
+## Extended analytics (Priority 3)
+
+All new GET routes below use the normal website read authorization (including
+native read tokens), tenant isolation, UTC period presets and report budgets.
+See [metric definitions](ANALYTICS_METRICS.md) before interpreting a rate.
+
+- `/comparison`: current and immediately preceding equal-duration snapshots,
+  exact boundaries, pageviews/visitors/sessions/bounced sessions and measured
+  visible time. Missing engagement remains unavailable; zero baselines have
+  no relative percentage change.
+- `/content`: top 100 paths with views, visitors, sessions, entries/exits,
+  associated goal-converting sessions, visible milliseconds, measured sessions
+  and nullable mean maximum scroll depth.
+- `/acquisition?dimension=channel|source|medium|campaign|landing`: top 100 groups
+  using each session's first observed pageview and distinct goal-session rates.
+- `/retention`: provided-visitor coverage and weekly cohorts, retained history
+  boundary, separate session-only/unclassified counts and nullable week 1–4
+  follow-up cells. No fingerprinting or automatic member/browser stitching.
+- `/vitals/comparison`: latest-instance p50/p75/p95 and sample counts for both
+  equal-duration windows.
+- `/newsletters`: top 100 editions by captured sends; distinct matched sent,
+  opened and clicked recipient IDs, link-recipient facts and explicit unassigned/
+  outside-send-cohort diagnostics. Backend newsletter facts optionally carry
+  `newsletter_id` and `recipient_id`, both 64-character lowercase hex hashes.
+- `/events?event=&path=&campaign=`: top 100 matching context groups, completions,
+  sessions and visitor IDs. Empty event selects custom/backend events; automatic
+  pageview/vital/engagement telemetry is excluded unless explicitly selected.
+- `/campaign-costs?model=first_touch|last_touch|last_non_direct`: currency-separated
+  supplied costs and recorded campaign revenue, explicit daily coverage and
+  nullable ROI/ROAS. Missing revenue/attribution, incomplete dates and zero cost
+  cannot manufacture returns. No FX conversion or provider verification.
+
+`POST /campaign-costs` requires a manager session with exact Origin, or the
+website's backend integration credential. Body: `{reference,revision,day,
+campaign,currency,amount_minor,source}`. UTC dates must be within retained
+history and not future; amounts are nonnegative supported-currency minor units.
+Source is a lowercase identifier (1–32 characters); references are hashed.
+An exact version replay returns the same record; changed/stale versions return
+409. Corrections increase the version, replacing the same source/reference.
+Fifty thousand retained records per website are allowed; further creation
+returns 409. Cost rows are audited, expire with retention and cascade on erasure.
+
+Funnel definitions additionally accept `scope: session|visitor` (default session)
+and `page_prefix` steps. Visitor scope uses explicitly provided IDs across
+sessions. Reports add `scope` and per-step `participants`; the legacy `sessions`
+field stays a session count and is zero for visitor-scoped reports. Ordered
+occurrence-time windows and permission/allowance checks remain in force.
+Revenue additionally groups by medium, channel, acquisition country and device.
+`dimension_present` is 0/1 and prevents missing/ambiguous campaign attribution
+from implying a calculable ROI; up to 1,000 attribution groups are returned,
+with an explicit refusal above that limit.
+
+Optional browser `web_engagement` events carry `engagement:{duration_ms,
+scroll_percent}`, bounded to 30,000 milliseconds / 100%. The tracker enables
+these only through `engagement:true` or `data-engagement="true"`; they consume
+normal event allowance. Persisted visitor mode, coarse OS and telemetry are
+additive ClickHouse fields; older data stays unclassified. CSV exports include
+these minimized fields and opaque newsletter edition keys, excluding recipient
+hashes. Periods retain UTC collection-time semantics; ordering/windows use
+validated occurrence time.

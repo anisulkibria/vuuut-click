@@ -38,3 +38,19 @@
   typed Rust native SDK methods, OpenAPI/setup/security documentation and real
   cross-application/database/browser verification. See CONTINUE.md for evidence
   and the separate production release gates.
+
+
+## 2026-11-09 — Analytics breadth (Priority 3)
+
+- Add period/vital comparisons, rich content/acquisition/event/OS reports,
+  provided-identity retention/cohorts and visitor/page-prefix funnels.
+- Add opt-in visible-time/scroll telemetry with consent, visibility, SPA,
+  bounded UTF-8 labels, retry ownership and beacon/batch coverage.
+- Capture newsletter editions transactionally in CMS SQLite/MySQL and report
+  send cohorts using scoped hashes; resolve titles locally in native Admin.
+- Add revisioned campaign-cost records, provenance/coverage and currency-safe
+  ROI/ROAS, additional revenue dimensions and typed SDK/OpenAPI contracts.
+- Extend native reports, Owner cost entry and optional measurement preferences;
+  refresh isolated demo data and document exact metric limits.
+- Avoid redundant retention mutations across workers and redirect completed
+  export submissions so refresh cannot enqueue another export.

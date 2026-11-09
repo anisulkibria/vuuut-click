@@ -26,6 +26,13 @@ const VIEWS: &[(&str, &str, &str)] = &[
     ("journeys", "Journeys", "Every visit tells a story."),
     ("revenue", "Revenue", "Understand what brings value."),
     ("performance", "Web Vitals", "Make every visit feel better."),
+    ("retention", "Retention", "See what brings readers back."),
+    ("newsletters", "Newsletters", "Understand every edition."),
+    (
+        "campaigns",
+        "Campaign ROI",
+        "Connect value with recorded cost.",
+    ),
 ];
 fn panel(title: &str, body: &str) -> String {
     format!(
@@ -92,24 +99,29 @@ pub async fn page(
     }
     match view {
         "funnels" => {
-            let funnels:Vec<Funnel>=sqlx::query_as("SELECT id,name,steps,window_seconds FROM funnels WHERE website_id=$1 ORDER BY created_at LIMIT 100").bind(id).fetch_all(&s.store.pg).await?;
+            let funnels:Vec<Funnel>=sqlx::query_as("SELECT id,name,steps,window_seconds,scope FROM funnels WHERE website_id=$1 ORDER BY created_at LIMIT 100").bind(id).fetch_all(&s.store.pg).await?;
             if funnels.is_empty() {
                 content.push_str(&panel("See the steps that count","<p>Create a funnel using page paths and custom events to measure sessions that reach each step.</p>"));
             }
             for funnel in funnels {
                 let report = analytics::funnel_report(&s.store, &site, funnel, start, end).await?;
                 let mut rows = String::new();
-                let first = report.steps.first().map(|s| s.sessions).unwrap_or(0);
+                let first = report.steps.first().map(|s| s.participants).unwrap_or(0);
                 for (index, step) in report.steps.iter().enumerate() {
                     let width = if first == 0 {
                         0.0
                     } else {
-                        step.sessions as f64 / first as f64 * 100.0
+                        step.participants as f64 / first as f64 * 100.0
                     };
-                    rows.push_str(&format!(r#"<tr><td>{}. {}<small class="muted"> · {}</small><svg class="row-bar" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><rect width="{width}" height="3"/></svg></td><td>{}</td><td>{:.1}%</td><td>{}</td></tr>"#,index+1,esc(&step.value),esc(&step.kind),step.sessions,step.conversion_rate,step.drop_off));
+                    rows.push_str(&format!(r#"<tr><td>{}. {}<small class="muted"> · {}</small><svg class="row-bar" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><rect width="{width}" height="3"/></svg></td><td>{}</td><td>{:.1}%</td><td>{}</td></tr>"#,index+1,esc(&step.value),esc(&step.kind),step.participants,step.conversion_rate,step.drop_off));
                 }
-                let mut body = table(&["Step", "Sessions", "Conversion", "Drop-off"], &rows);
-                body.push_str(&format!("<p class=muted>Ordered within {} hours. Counts are distinct sessions, with a strictly increasing event time.</p>",report.window_seconds/3600));
+                let unit = if report.scope == "visitor" {
+                    "Provided visitors"
+                } else {
+                    "Sessions"
+                };
+                let mut body = table(&["Step", unit, "Conversion", "Drop-off"], &rows);
+                body.push_str(&format!("<p class=muted>Ordered within {}. Counts use the selected participant scope, with a strictly increasing event time.</p>",format_window(report.window_seconds)));
                 if role.can_edit_goals() {
                     // Pre-filled with the funnel as it stands, in the same
                     // `kind:value` lines the create form accepts, so fixing a
@@ -122,7 +134,7 @@ pub async fn page(
                         .map(|step| format!("{}:{}", esc(&step.kind), esc(&step.value)))
                         .collect::<Vec<_>>()
                         .join("\n");
-                    let windows = [(3600, "1 hour"), (86400, "24 hours"), (604800, "7 days")]
+                    let mut windows = [(3600, "1 hour"), (86400, "24 hours"), (604800, "7 days")]
                         .iter()
                         .map(|(seconds, label)| {
                             let selected = if *seconds == report.window_seconds {
@@ -133,8 +145,15 @@ pub async fn page(
                             format!(r#"<option value="{seconds}"{selected}>{label}</option>"#)
                         })
                         .collect::<String>();
+                    if ![3600, 86400, 604800].contains(&report.window_seconds) {
+                        windows.push_str(&format!(
+                            "<option value=\"{}\" selected>{} seconds</option>",
+                            report.window_seconds, report.window_seconds
+                        ));
+                    }
+                    let scopes = scope_options(&report.scope);
                     body.push_str(&format!(
-                        r#"<details class="row-edit"><summary>Edit this funnel</summary><form action="/insights/action" method="post" class="stack"><input type="hidden" name="action" value="update"><input type="hidden" name="site" value="{id}"><input type="hidden" name="funnel" value="{funnel}"><label>Funnel name<input name="name" maxlength="100" required value="{name}"></label><label>Steps, one per line<textarea name="steps" rows="4" required maxlength="9000">{steps}</textarea></label><p class="muted">Use <code>page:/your-path</code> or <code>event:your_event</code>. Include 2–8 steps.</p><label>Conversion window<select name="window_seconds">{windows}</select></label><button class="btn primary">Save funnel</button></form></details><form action="/insights/action" method="post" onsubmit="return confirm('Remove this funnel? Your sessions and events are not affected.')"><input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{id}"><input type="hidden" name="funnel" value="{funnel}"><button class="btn outlined small">Remove funnel</button></form>"#,
+                        r#"<details class="row-edit"><summary>Edit this funnel</summary><form action="/insights/action" method="post" class="stack"><input type="hidden" name="action" value="update"><input type="hidden" name="site" value="{id}"><input type="hidden" name="funnel" value="{funnel}"><label>Funnel name<input name="name" maxlength="100" required value="{name}"></label><label>Steps, one per line<textarea name="steps" rows="4" required maxlength="9000">{steps}</textarea></label><p class="muted">Use <code>page:/your-path</code>, <code>page_prefix:/section/</code> or <code>event:your_event</code>. Include 2–8 steps.</p><label>Participant scope<select name="scope">{scopes}</select></label><label>Conversion window<select name="window_seconds">{windows}</select></label><button class="btn primary">Save funnel</button></form></details><form action="/insights/action" method="post" onsubmit="return confirm('Remove this funnel? Your sessions and events are not affected.')"><input type="hidden" name="action" value="delete"><input type="hidden" name="site" value="{id}"><input type="hidden" name="funnel" value="{funnel}"><button class="btn outlined small">Remove funnel</button></form>"#,
                         funnel = report.id,
                         name = esc(&report.name),
                     ));
@@ -142,7 +161,7 @@ pub async fn page(
                 content.push_str(&panel(&report.name, &body));
             }
             if role.can_edit_goals() {
-                content.push_str(&panel("Create a funnel",&format!(r#"<form action="/insights/action" method="post" class="stack"><input type="hidden" name="action" value="create"><input type="hidden" name="site" value="{id}"><label>Funnel name<input name="name" maxlength="100" required placeholder="From reader to subscriber"></label><label>Steps, one per line<textarea name="steps" rows="4" required maxlength="9000" placeholder="page:/&#10;page:/pricing&#10;event:trial_started"></textarea></label><p class="muted">Use <code>page:/your-path</code> or <code>event:your_event</code>. Include 2–8 steps.</p><label>Conversion window<select name="window_seconds"><option value="3600">1 hour</option><option value="86400" selected>24 hours</option><option value="604800">7 days</option></select></label><button class="btn primary">Create funnel</button></form>"#)));
+                content.push_str(&panel("Create a funnel",&format!(r#"<form action="/insights/action" method="post" class="stack"><input type="hidden" name="action" value="create"><input type="hidden" name="site" value="{id}"><label>Funnel name<input name="name" maxlength="100" required placeholder="From reader to subscriber"></label><label>Steps, one per line<textarea name="steps" rows="4" required maxlength="9000" placeholder="page:/&#10;page:/pricing&#10;event:trial_started"></textarea></label><p class="muted">Use <code>page:/your-path</code>, <code>page_prefix:/section/</code> or <code>event:your_event</code>. Include 2–8 steps.</p><label>Participant scope<select name="scope"><option value="session">Session</option><option value="visitor">Provided visitor (cross-session)</option></select></label><label>Conversion window<select name="window_seconds"><option value="3600">1 hour</option><option value="86400" selected>24 hours</option><option value="604800">7 days</option></select></label><button class="btn primary">Create funnel</button></form>"#)));
             }
         }
         "journeys" => {
@@ -187,6 +206,10 @@ pub async fn page(
                 ("source", "Source"),
                 ("campaign", "Campaign"),
                 ("landing", "Landing page"),
+                ("medium", "Medium"),
+                ("channel", "Channel"),
+                ("country", "Country"),
+                ("device", "Device"),
             ] {
                 dimensions.push_str(&format!(
                     r#"<option value="{key}" {}>{label}</option>"#,
@@ -217,7 +240,26 @@ pub async fn page(
             ));
             content.push_str(&panel("Connect authoritative revenue",&format!(r#"<p>Send payment and refund events from your backend using a website integration credential. Net revenue deducts recorded refunds, with a 30-day session lookback. Currencies are reported separately.</p><a class="btn outlined small" href="/settings?tab=keys&amp;org={}&amp;site={id}">Manage integration credentials →</a>"#,site.organization_id)));
         }
+        "newsletters" => {
+            content.push_str(&crate::explore_ui::newsletters(&s.store, &site, start, end).await?)
+        }
+        "campaigns" => content.push_str(
+            &crate::explore_ui::campaigns(
+                &s.store,
+                &site,
+                start,
+                end,
+                q.model.as_deref().unwrap_or("last_non_direct"),
+                days,
+                role.can_manage(),
+            )
+            .await?,
+        ),
+        "retention" => {
+            content.push_str(&crate::explore_ui::retention(&s.store, &site, start, end).await?)
+        }
         "performance" => {
+            content.push_str(&crate::explore_ui::vitals(&s.store, &site, start, end).await?);
             let metrics = analytics::vital_data(&s.store, &site, start, end).await?;
             let mut body = String::new();
             for metric in metrics {
@@ -253,7 +295,7 @@ pub async fn page(
         _ => {}
     }
     let body = format!(
-        r#"<header class="topbar"><div class="breadcrumb">Your workspace <span>/</span> {label}</div><a class="status" href="/dashboard?site={id}">Overview →</a></header><div class="page"><div class="page-heading"><div><span class="eyebrow">FOLLOW THE DETAILS</span><h1>{title}</h1><p>Deeper insights for {}.</p></div><a class="btn outlined" href="/insights?site={id}&amp;view={view}&amp;days={days}">↻ Refresh</a></div><div class="toolbar"><form method="get" action="/insights"><input type="hidden" name="view" value="{view}"><label class="sr-only" for="insight-site">Website</label><select id="insight-site" name="site">{options}</select><label class="sr-only" for="insight-period">Period</label><select id="insight-period" name="days">{periods}</select><button class="btn small">Apply</button></form><span class="muted">All dates and times in UTC</span></div><nav class="settings-tabs" aria-label="Advanced analytics">{nav}</nav>{content}</div>"#,
+        r#"<header class="topbar"><div class="breadcrumb">Your workspace <span>/</span> {label}</div><a class="status" href="/dashboard?site={id}">Overview →</a></header><div class="page"><div class="page-heading"><div><span class="eyebrow">FOLLOW THE DETAILS</span><h1>{title}</h1><p>Deeper insights for {}.</p></div><a class="btn outlined" href="/insights?site={id}&amp;view={view}&amp;days={days}">↻ Refresh</a></div><div class="toolbar"><form method="get" action="/insights"><input type="hidden" name="view" value="{view}"><label class="sr-only" for="insight-site">Website</label><select id="insight-site" name="site">{options}</select><label class="sr-only" for="insight-period">Period</label><select id="insight-period" name="days">{periods}</select><button class="btn small">Apply</button></form><span class="muted">Periods use UTC collection time</span></div><nav class="settings-tabs" aria-label="Advanced analytics">{nav}</nav>{content}</div>"#,
         esc(&site.name)
     );
     Ok(dashboard::shell(&h, &user.email, "insights", Some(id), body).into_response())
@@ -297,6 +339,7 @@ pub struct Action {
     name: Option<String>,
     steps: Option<String>,
     window_seconds: Option<i32>,
+    scope: Option<String>,
 }
 pub async fn action(
     State(s): State<AppState>,
@@ -316,6 +359,7 @@ pub async fn action(
                         .ok_or_else(|| ApiError::bad("Name your funnel"))?,
                     steps,
                     window_seconds: input.window_seconds.unwrap_or(86400),
+                    scope: input.scope.unwrap_or_else(|| "session".into()),
                 },
             )
             .await?;
@@ -333,6 +377,7 @@ pub async fn action(
                         .ok_or_else(|| ApiError::bad("Name your funnel"))?,
                     steps,
                     window_seconds: input.window_seconds.unwrap_or(86400),
+                    scope: input.scope.unwrap_or_else(|| "session".into()),
                 },
             )
             .await?;
@@ -352,4 +397,119 @@ pub async fn action(
         "/insights?view=funnels&site={}",
         input.site
     )))
+}
+
+fn scope_options(scope: &str) -> String {
+    [
+        ("session", "Session"),
+        ("visitor", "Provided visitor (cross-session)"),
+    ]
+    .iter()
+    .map(|(value, label)| {
+        format!(
+            "<option value=\"{value}\" {}>{label}</option>",
+            if *value == scope { "selected" } else { "" }
+        )
+    })
+    .collect()
+}
+
+#[derive(Deserialize)]
+pub struct CostForm {
+    site: Uuid,
+    days: Option<u32>,
+    reference: String,
+    revision: i64,
+    day: chrono::NaiveDate,
+    campaign: String,
+    currency: String,
+    amount: String,
+    source: String,
+}
+pub async fn record_cost(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Form(f): Form<CostForm>,
+) -> AppResult<Redirect> {
+    let amount = parse_amount(&f.amount, &f.currency)?;
+    crate::costs::record_cost(
+        &s,
+        &h,
+        f.site,
+        crate::costs::CostInput {
+            reference: f.reference,
+            revision: f.revision,
+            day: f.day,
+            campaign: f.campaign,
+            currency: f.currency,
+            amount_minor: amount,
+            source: f.source,
+        },
+    )
+    .await?;
+    let days = f.days.unwrap_or(7);
+    api::range(&api::Period { days: Some(days) })?;
+    Ok(Redirect::to(&format!(
+        "/insights?site={}&view=campaigns&days={days}",
+        f.site
+    )))
+}
+fn parse_amount(raw: &str, currency: &str) -> AppResult<i64> {
+    let (whole, decimal) = raw.split_once('.').unwrap_or((raw, ""));
+    let scale = if currency == "JPY" { 0 } else { 2 };
+    if whole.is_empty()
+        || !whole.bytes().all(|b| b.is_ascii_digit())
+        || decimal.len() > scale
+        || !decimal.bytes().all(|b| b.is_ascii_digit())
+    {
+        return Err(ApiError::bad(
+            "Use a nonnegative amount with the currency's decimal places",
+        ));
+    }
+    let whole = whole
+        .parse::<i64>()
+        .map_err(|_| ApiError::bad("Cost is too large"))?;
+    let decimals = if decimal.is_empty() {
+        0
+    } else {
+        decimal
+            .parse::<i64>()
+            .map_err(|_| ApiError::bad("Invalid cost amount"))?
+            * if decimal.len() == 1 { 10 } else { 1 }
+    };
+    whole
+        .checked_mul(if scale == 0 { 1 } else { 100 })
+        .and_then(|v| v.checked_add(decimals))
+        .ok_or_else(|| ApiError::bad("Cost is too large"))
+}
+
+fn format_window(seconds: i32) -> String {
+    if seconds % 86400 == 0 {
+        format!("{} days", seconds / 86400)
+    } else if seconds % 3600 == 0 {
+        format!("{} hours", seconds / 3600)
+    } else if seconds % 60 == 0 {
+        format!("{} minutes", seconds / 60)
+    } else {
+        format!("{seconds} seconds")
+    }
+}
+
+#[cfg(test)]
+mod amount_tests {
+    #[test]
+    fn monetary_input_keeps_minor_units_exact_and_rejects_fractional_yen() {
+        assert_eq!(super::parse_amount("12.50", "USD").unwrap(), 1250);
+        assert_eq!(super::parse_amount("0.05", "BDT").unwrap(), 5);
+        assert_eq!(super::parse_amount("12", "JPY").unwrap(), 12);
+        for (raw, currency) in [
+            ("12.1", "JPY"),
+            ("-1", "USD"),
+            ("1.001", "USD"),
+            ("1e9", "USD"),
+            ("999999999999999999999", "USD"),
+        ] {
+            assert!(super::parse_amount(raw, currency).is_err());
+        }
+    }
 }

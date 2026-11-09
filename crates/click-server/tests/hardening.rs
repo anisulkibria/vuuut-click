@@ -449,6 +449,12 @@ async fn account_races_invitation_mail_and_tenant_report_limits() {
             metric_value: 0.0,
             amount_minor: 0,
             currency: String::new(),
+            visitor_mode: "provided".into(),
+            os: "Unknown".into(),
+            engagement_ms: 0,
+            scroll_percent: 0,
+            newsletter_id: String::new(),
+            recipient_id: String::new(),
         };
         insert.write(&row).await.unwrap();
         if index == 0 {

@@ -11,7 +11,7 @@ Call `window.vuuutClick.consent(true)` after your consent manager approves analy
 
 SPA pushState/replaceState/popstate navigation is tracked when pathname changes. Hash/query-only changes are intentionally ignored. Only UTM source, medium, campaign labels are collected; no arbitrary query/form values. Referrers become origins before sending and hosts in storage. SDK respects Do Not Track and GPC, including after initialization. 2-second batching, stable UUID event IDs, 5 bounded retries, 100-event memory queue and best-effort beacon support. Terminal failures warn without logging payloads; navigation/beacon delivery is best effort and cannot guarantee browser/network delivery before durable acceptance. Backend acceptance is durable.
 
-HTML, Ghost themes, WordPress, Shopify and Webflow can paste the script before `</head>` using their HTML/code injection mechanism. React/Next, Vue/Nuxt can load it once in the root layout with their script mechanism; do not remount a tracker on every component render. Consent must still be wired explicitly. For module clients, import `createTracker` from the ESM build and pass `{endpoint:'https://analytics.example/v1/collect/vc_...',consent:'required'}`. These install patterns do not imply completed native CMS/payment integrations.
+HTML, Ghost themes, WordPress, Shopify and Webflow can paste the script before `</head>` using their HTML/code injection mechanism. React/Next, Vue/Nuxt can load it once in the root layout with their script mechanism; do not remount a tracker on every component render. Consent must still be wired explicitly. For module clients, import `createTracker` from the ESM build and pass `{endpoint:'https://analytics.example/v1/collect/vc_...',consent:'required'}`. Native Vuuut/Vuuut-pro setup is documented separately in GHOST_INTEGRATION.md.
 
 A first-party proxy must forward the exact collection route, preserve the site's Origin and only set forwarding headers at an explicitly trusted proxy. Never reflect arbitrary collection origins or forward account cookies. Country lookup uses the actual peer unless the proxy network is allowlisted.
 
@@ -20,3 +20,23 @@ A first-party proxy must forward the exact collection route, preserve the site's
 Load `/vitals.js` with defer immediately after the base tracker. The optional MIT-licensed web-vitals addon measures LCP, INP, CLS, FCP and TTFB when supported; the base tracker remains dependency-free. Consent/DNT/GPC settings apply. Reports use the latest value per metric instance, so CLS/INP updates do not inflate sample counts. The addon captures the path at measurement initialization. Metric occurrence times use milliseconds with a monotonic per-page event clock for ordered funnels.
 
 `window.vuuutClick.identity()` returns the consented random session_id/visitor_id (or null when disallowed). If needed, carry them through your own server transaction to correlate authorized backend conversion events. Never include an integration key in browser scripts. Server TypeScript API client: `tracker/src/api.ts`, bundled ESM `tracker/dist/api.js`; Rust client: `crates/click-sdk`. Call backendEvent with a stable external_id for retries. Publishing versioned SDK packages is still pending.
+
+## Optional engagement
+
+Add `data-engagement="true"` to the script, or `engagement: true` to
+`createTracker`. It is off by default. After consent, the tracker records
+`web_engagement` with visible-document milliseconds and maximum scroll percent;
+it never reads page text or form values. Visible time is emitted about every
+15 seconds and at page transitions/visibility changes, bounded to 30 seconds
+per event. Hidden time is excluded; SPA time belongs to the path being left.
+These events consume the normal event allowance. Reports show observed time
+and measured-session coverage, with unavailable values for unmeasured pages.
+
+For returning-browser/cohort reports, use `data-identity="persistent"` only
+with required consent. Without it, session-only and legacy identity coverage
+are shown separately. Persistent identifiers are random browser identifiers,
+never CMS member IDs. Consent withdrawal clears SDK storage and pending events;
+it cannot undo a request already sent. UTM labels are limited to 120 UTF-8
+bytes and stripped of control characters. Batches remain below 60 KB, retain
+IDs/timestamps on retry and keep in-flight events separate from pagehide beacons.
+The base IIFE is currently 5,519 bytes uncompressed.

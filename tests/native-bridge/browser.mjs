@@ -44,6 +44,22 @@ try {
     await page.screenshot({path:`${directory}/native-admin-mobile.png`,fullPage:true});
     await page.getByRole('button',{name:'Test connection',exact:true}).click();
     await page.getByRole('status').filter({hasText:'Connection updated'}).waitFor();
+    for (const [view,heading] of [['content','Website content and engagement'],['retention','Weekly visitor retention'],['campaigns','Campaign costs and returns'],['performance','Web Vitals period comparison'],['newsletters','Newsletter editions']]) {
+      await page.goto(`${process.env.NATIVE_TEST_CMS}/ghost/analytics/click/?view=${view}`,{waitUntil:'networkidle'});
+      await page.getByRole('heading',{name:heading,exact:true}).waitFor();
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),`native ${view} fits a phone`);
+      if (view === 'campaigns') {
+        await page.getByLabel('Campaign label',{exact:true}).fill('CMS ledger campaign');await page.getByLabel('Amount in minor currency units').fill('525');await page.getByLabel('Cost source',{exact:true}).fill('cms_ledger');await page.getByLabel('Source record reference').fill('cms-ledger-row');await page.getByRole('button',{name:'Save cost record',exact:true}).click();
+        await page.getByRole('status').filter({hasText:'Cost record saved'}).waitFor();assert.match(await page.locator('body').innerText(),/USD 5.25/);
+      }
+      await page.screenshot({path:`${directory}/native-${view}-mobile.png`,fullPage:true});
+    }
+    await page.goto(`${process.env.NATIVE_TEST_CMS}/ghost/analytics/click/`,{waitUntil:'networkidle'});
+    const preferences=page.locator('section').filter({has:page.getByRole('heading',{name:'Measurement preferences',exact:true})});
+    await preferences.getByLabel('Require visitor consent',{exact:true}).check();await preferences.getByLabel('Measure visible time and scroll depth',{exact:true}).check();await preferences.getByLabel('Use persistent visitor IDs after consent',{exact:true}).check();
+    await preferences.getByRole('button',{name:'Save measurement preferences',exact:true}).click();await page.getByRole('status').filter({hasText:'Measurement preferences saved'}).waitFor();
+    await page.goto(process.env.NATIVE_TEST_CMS,{waitUntil:'networkidle'});assert.equal(await page.locator('script[data-engagement="true"][data-identity="persistent"][data-consent="required"]').count(),1);
+
   }
   await context.close();
 } finally {await browser.close();}

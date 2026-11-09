@@ -21,3 +21,12 @@ Native tenants have a separate organization/subscription/website and no implicit
 Click user membership. CMS 0038–0039 and platform 0004–0005 (both SQLite/MySQL) are in the
 sibling repositories; they hold private connection/source outbox and durable
 lifecycle revisions respectively. No sibling DB schema is imported into Click.
+
+Priority 3 adds PostgreSQL **0011** (funnel participant scope and versioned,
+website-bound campaign costs with hashed source references) and ClickHouse
+**0003** (provided/session/unknown visitor mode, coarse OS, bounded engagement
+and opaque edition/recipient context). Historical/pending old events retain
+unknown identity coverage. Migration directories invalidate the compiled
+migration bundle through click-store/build.rs. Retention removes cost dates in
+UTC, skips empty ClickHouse rewrites and uses a database-scoped advisory sweep
+lock; workspace locks still protect each site's acceptance/retention race.

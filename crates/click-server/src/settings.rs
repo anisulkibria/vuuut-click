@@ -709,11 +709,14 @@ async fn apply_action(
                 .parse()
                 .map_err(|_| ApiError::bad("Select an export period"))?;
             jobs::queue_export(&s, &h, id(site)?, days).await?;
-            (
-                "privacy",
-                None,
-                "Export queued. Refresh this page to download it when ready.",
-            )
+            // A refresh while waiting must fetch the job list, not submit
+            // another export with the browser's retained POST body.
+            return Ok(Redirect::to(&format!(
+                "/settings?tab=privacy&org={}&site={}",
+                id(org)?,
+                id(site)?
+            ))
+            .into_response());
         }
         "delete_website" => {
             jobs::delete_site(&s, &h, id(site)?, &require(&input.confirmation)?).await?;

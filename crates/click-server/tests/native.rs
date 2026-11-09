@@ -598,6 +598,7 @@ async fn native_reports_count_exact_activity_and_post_traffic_without_top_list_t
                 utm_campaign: String::new(),
                 occurred_at_ms: None,
                 vital: None,
+                engagement: None,
             }
             .clean(id, &h.base)
             .unwrap(),
@@ -619,6 +620,7 @@ async fn native_reports_count_exact_activity_and_post_traffic_without_top_list_t
                     utm_campaign: String::new(),
                     occurred_at_ms: None,
                     vital: None,
+                    engagement: None,
                 }
                 .clean(id, &h.base)
                 .unwrap(),

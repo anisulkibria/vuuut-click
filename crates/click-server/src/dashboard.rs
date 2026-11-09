@@ -284,6 +284,10 @@ pub struct DashboardQuery {
     site: Option<Uuid>,
     days: Option<u32>,
     view: Option<String>,
+    dimension: Option<String>,
+    event: Option<String>,
+    path: Option<String>,
+    campaign: Option<String>,
 }
 pub async fn overview(
     State(s): State<AppState>,
@@ -375,6 +379,11 @@ pub async fn overview(
             (Dimension::Countries, "Around the world", "Country"),
             (Dimension::Devices, "Their devices", "Device"),
             (Dimension::Browsers, "Their browsers", "Browser"),
+            (
+                Dimension::OperatingSystems,
+                "Their operating systems",
+                "Operating system",
+            ),
         ],
         "acquisition" => &[
             (Dimension::Referrers, "Where they find you", "Source"),
@@ -401,6 +410,7 @@ pub async fn overview(
             Dimension::Campaigns => "Leading campaign",
             Dimension::Pages => "Most visited page",
             Dimension::Events => "Top action",
+            Dimension::OperatingSystems => "Top operating system",
         };
         let value = leading
             .map(|r| {
@@ -456,6 +466,47 @@ pub async fn overview(
             )
         );
     }
+    match view {
+        "overview" => {
+            panels.push_str(&crate::explore_ui::comparison(&s.store, &site, start, end).await?)
+        }
+        "content" => {
+            panels.push_str(&crate::explore_ui::content(&s.store, &site, start, end).await?)
+        }
+        "acquisition" => panels.push_str(
+            &crate::explore_ui::acquisition(
+                &s.store,
+                &site,
+                start,
+                end,
+                q.dimension.as_deref().unwrap_or("channel"),
+                days,
+            )
+            .await?,
+        ),
+        "audience" => {
+            panels.push_str(&crate::explore_ui::audience(&s.store, &site, start, end, days).await?)
+        }
+        _ => {}
+    }
+    if view == "events" {
+        panels.push_str(
+            &crate::explore_ui::events(
+                &s.store,
+                &site,
+                start,
+                end,
+                &crate::explore::EventQuery {
+                    days: Some(days),
+                    event: q.event,
+                    path: q.path,
+                    campaign: q.campaign,
+                },
+                days,
+            )
+            .await?,
+        );
+    }
     let mut goals = String::new();
     if view == "events" {
         let rows: Vec<api::Goal> = sqlx::query_as(
@@ -467,6 +518,15 @@ pub async fn overview(
         let editable = role.can_edit_goals();
         for g in rows {
             let count = s.store.goal_count(&site, &g.event_name, start, end).await?;
+            let converting = s
+                .store
+                .goal_sessions(&site, &g.event_name, start, end)
+                .await?;
+            let conversion = if data.sessions == 0 {
+                "Unavailable".into()
+            } else {
+                format!("{:.1}%", converting as f64 / data.sessions as f64 * 100.0)
+            };
             // The row stays a readable row: name and event as text, as a
             // table of values should be. Editing is a secondary action,
             // folded into a disclosure on its own full-width row — the same
@@ -483,20 +543,20 @@ pub async fn overview(
                 String::new()
             };
             goals.push_str(&format!(
-                "<tr><td>{}</td><td><code>{}</code></td><td class=number>{count}</td>{actions}</tr>",
+                "<tr><td>{}</td><td><code>{}</code></td><td class=number>{count}</td><td>{converting}</td><td>{conversion}</td>{actions}</tr>",
                 esc(&g.name),
                 esc(&g.event_name)
             ));
             if editable {
                 goals.push_str(&format!(
-                    r#"<tr class="edit-row"><td colspan=4><details class="row-edit"><summary>Edit {name}</summary><form action="/goals/action" method="post" class="goal-form"><input type="hidden" name="action" value="update"><input type="hidden" name="site" value="{id}"><input type="hidden" name="goal" value="{goal}"><label>Goal name<input name="name" value="{name}" required maxlength="100"></label><label>Event name<input name="event_name" value="{event}" required maxlength="64"></label><button class="btn primary">Save goal</button></form></details></td></tr>"#,
+                    r#"<tr class="edit-row"><td colspan=6><details class="row-edit"><summary>Edit {name}</summary><form action="/goals/action" method="post" class="goal-form"><input type="hidden" name="action" value="update"><input type="hidden" name="site" value="{id}"><input type="hidden" name="goal" value="{goal}"><label>Goal name<input name="name" value="{name}" required maxlength="100"></label><label>Event name<input name="event_name" value="{event}" required maxlength="64"></label><button class="btn primary">Save goal</button></form></details></td></tr>"#,
                     goal = g.id,
                     name = esc(&g.name),
                     event = esc(&g.event_name),
                 ));
             }
         }
-        let columns = if editable { 4 } else { 3 };
+        let columns = if editable { 6 } else { 5 };
         if goals.is_empty() {
             goals = format!(
                 "<tr><td colspan={columns}>No goals yet. Give an important action a name.</td></tr>"
@@ -511,7 +571,7 @@ pub async fn overview(
             String::new()
         };
         goals = format!(
-            r#"<section class="panel"><div class="panel-heading"><h2>Your goals</h2><span class="pill">Custom events</span></div><div class="owner-table"><table><thead><tr><th>Goal</th><th>Event</th><th class="number">Completions</th>{actions_header}</tr></thead><tbody>{goals}</tbody></table></div>{form}<p class="muted">Completions count accepted event IDs. Trigger an event with <code>vuuutClick.track('newsletter_signup')</code>.</p></section>"#
+            r#"<section class="panel"><div class="panel-heading"><h2>Your goals</h2><span class="pill">Custom events</span></div><div class="owner-table"><table><thead><tr><th>Goal</th><th>Event</th><th class="number">Completions</th><th>Converting sessions</th><th>Session conversion rate</th>{actions_header}</tr></thead><tbody>{goals}</tbody></table></div>{form}<p class="muted">Completions count accepted event IDs. Session rates count distinct associated sessions with a pageview in this period; unmatched backend facts do not imply browser association. Trigger an event with <code>vuuutClick.track('newsletter_signup')</code>.</p></section>"#
         );
     }
     let geo = if site.is_demo {
@@ -708,7 +768,7 @@ fn website_card(s: &Website, public: &str, local: bool) -> String {
         s.collection_id
     );
     format!(
-        r#"<section class="panel website-card"><div class="panel-heading"><div><h2>{}</h2><p>{}</p></div>{status}<a class="btn outlined small" href="/dashboard?site={}">Open analytics →</a></div>{verify}<div class="setup-step"><span class="step-number">{}</span><div><h3>Give your website a little insight</h3><p>Add this script to your site's HTML. After your visitor consents, call <code>vuuutClick.consent(true)</code>.</p><pre><code>{}</code></pre>{test_link}<p class="muted">Session-only identity by default. DNT and Global Privacy Control are respected. Choose anonymous collection with <code>data-consent="anonymous"</code> only after reviewing your consent requirements.</p></div></div></section>"#,
+        r#"<section class="panel website-card"><div class="panel-heading"><div><h2>{}</h2><p>{}</p></div>{status}<a class="btn outlined small" href="/dashboard?site={}">Open analytics →</a></div>{verify}<div class="setup-step"><span class="step-number">{}</span><div><h3>Give your website a little insight</h3><p>Add this script to your site's HTML. After your visitor consents, call <code>vuuutClick.consent(true)</code>.</p><pre><code>{}</code></pre>{test_link}<p class="muted">Session-only identity by default. Add <code>data-identity="persistent"</code> only after consent to support returning-browser reports. Add <code>data-engagement="true"</code> to opt into visible-time and scroll measurement; these additional events count toward usage. DNT and Global Privacy Control are respected. Choose anonymous collection with <code>data-consent="anonymous"</code> only after reviewing your consent requirements.</p></div></div></section>"#,
         esc(&s.name),
         esc(&s.origin),
         s.id,

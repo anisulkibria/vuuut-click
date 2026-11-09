@@ -1,6 +1,6 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-09 (Asia/Dhaka). The user requested the full **Priority 2: native Vuuut/Vuuut-pro integration**. Implementation is complete across the three repositories and final regression verification is in progress; the latest results will be recorded below before completion. Priority 1 remains complete. Production release gates remain separate. Local Click stays on http://localhost:8082; existing credentials/data are preserved.
+Last handoff: 2026-11-09 (Asia/Dhaka). The user requested the full **Priority 2: native Vuuut/Vuuut-pro integration**. Priority 2 is complete across the three repositories, verified and running locally. Priority 3 analytics breadth is implemented locally, with one final full-browser rerun pending. The user explicitly requested a pause to commit/push and continue later; resume only when asked. See the latest checkpoint below. Priority 1 remains complete. Production release gates remain separate. Local Click stays on http://localhost:8082; existing credentials/data are preserved.
 
 ## What the user is building
 
@@ -62,7 +62,7 @@ Original machine project: `/Users/anisulkibria/Documents/Rust/Ghost/Vuuut-click`
 - Existing demo website: `Vuuut Journal · Demo`, id `2220b39d-ac4c-4830-9ed4-c242718129c0`. Existing real website stays separate.
 - Local private `.env`; Docker PostgreSQL on 55432, ClickHouse HTTP on 58123. Persistent named Docker volumes. Health `/healthz`, dependencies `/readyz`.
 - Main server log/PID: `.local/server.log`, `.local/server.pid`. Temporary staging 8083 was stopped; the verified build is running on 8082. Verify readiness; do not assume a process survived a device restart.
-- Migrations 0001–0010 PostgreSQL and 0001–0002 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
+- Migrations 0001–0011 PostgreSQL and 0001–0003 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
 
 ## Clone and run on another device
 
@@ -241,8 +241,8 @@ On this Mac, use `CHROMIUM_EXECUTABLE_PATH="/Applications/Google Chrome.app/Cont
 ## Resume priorities — do not restart from scratch
 
 1. **Finish product hardening around existing workflows — complete locally, 2026-11-08.** Goal/funnel editing/deletion, transactional workspace privilege rechecks, account/password/reset/promotion races, consistent HTML/API validation and overload errors, automatic invitation email queueing, owner profile/password/recovery/MFA UI, per-workspace report budgets and bounded journey aggregation are implemented and verified. Details and limits are in the completion section below. Production SMTP, distributed edge budgets and independent security/MFA review remain release gates under priorities 4–5.
-2. **Native Ghost/Vuuut and Vuuut-pro integration — implemented; final regression verification in progress.** All requested components are present in the sibling repositories; see the new native integration section and docs/GHOST_INTEGRATION.md. Never expose platform/integration credentials in browser content.
-3. **Remaining analytics breadth** from original brief: richer content/engagement/returning/cohort and period comparisons, expanded funnel options, newsletter-specific reports, additional attribution dimensions, ROI only when authoritative ad-spend data exists. Define metric semantics and exact tests before UI claims.
+2. **Native Ghost/Vuuut and Vuuut-pro integration — complete and verified.** All requested components are present in the sibling repositories; see the new native integration section and docs/GHOST_INTEGRATION.md. Never expose platform/integration credentials in browser content.
+3. **Analytics breadth — implemented under Priority 3; final browser rerun pending.** Richer content/acquisition/event reports, opt-in engagement, returning/cohorts and period comparisons, visitor/prefix funnels, newsletter editions, extra attribution dimensions and explicit-cost ROI are implemented. See docs/ANALYTICS_METRICS.md and the completion evidence below.
 4. **Production commercial validation**: operator-configured Stripe test-account checkout/portal/cancel/past-due/webhook scenarios, real SMTP verification/reset delivery and invitation mail, email/DNS/abuse policies, plan/downgrade edge cases, retention fulfillment monitoring. No live charges are authorized by this local project task.
 5. **Operational release gates**: OTel and metrics/dashboards/alerts, distributed edge/request budgets, encrypted off-site backups with cross-store consistency and verified restore drills, dependency/image/license scanning, Linux image/TLS deployment, capacity/load benchmarks at 1M/10M/100M monthly events, independent security review. NATS JetStream is optional only when distributed queue requirements justify it; current PostgreSQL outbox is durable. Keep readiness, retry and dedup behavior through migrations.
 6. **Release/package work**: version/publish signed browser and Rust SDKs, OpenAPI response-schema completeness, operator/admin and migration documentation, CI execution on actual remote and production acceptance evidence. Maintain license notices. Do not assert production-ready until all gates genuinely pass.
@@ -299,9 +299,8 @@ The next agent should state which unfinished priority it is tackling, preserve a
 ## Priority 2 — native Vuuut/Vuuut-pro integration (2026-11-09)
 
 The user explicitly requested the **full Priority 2**, including the sibling
-applications. The implementation and functional verification are now complete;
-local optimized-binary rebuild/restart checks are being finished before this
-handoff is marked final. All changes are uncommitted in **three separate Git
+applications. The implementation, functional verification and local optimized-binary
+rebuild/restart checks are complete. All changes are uncommitted in **three separate Git
 repositories**. Do not transfer only the Click changes and expect an older CMS
 or hosting binary to support the connector.
 
@@ -403,8 +402,7 @@ Verified in this session:
 Limitations that remain intentional: automatic CMS events do not stitch member
 identities to browser sessions, so their revenue attribution is Direct unless
 an application explicitly supplies consented session IDs through the backend
-API. Native reports are basic traffic/activity/net revenue; the richer analytics
-in Priority 3 remain separate. Real public DNS/TLS, SMTP/Stripe account delivery,
+API. At the Priority 2 checkpoint, native reports covered basic traffic/activity/net revenue; Priority 3 extends them as documented below. Real public DNS/TLS, SMTP/Stripe account delivery,
 independent SSO/security review, distributed budgets, backups/restore drills and
 production/load/scanning gates remain priorities 4–6. No production readiness
 claim, live payment, remote publication or Git commit was performed.
@@ -416,11 +414,161 @@ with sibling [CMS notes](../Vuuut/docs/native-click.md) and
 Click environment. Set `NATIVE_TEST_BROWSER=1` and a working
 `CHROMIUM_EXECUTABLE_PATH` to include its real browser phases.
 
-Local runtime follow-up: Click is rebuilt and ready on 8082. An ignored private
-platform registration/configuration for the local Vuuut-pro development stack
-has been prepared (`.local/native-pro-platform.json`, mode 0600; ignored hosting
-`run/pro.json`). Its previous private config is backed up in
-`.local/native-pro-config-before.json` (0600). Existing account passwords are
-unchanged. Sibling optimized binaries and final native synchronization smoke
-checks are still being completed; update this paragraph with actual readiness
-and synchronization results before calling the runtime handoff final.
+Local runtime verified: Click is rebuilt and ready on **8082**, standalone CMS
+is running its new optimized binary on **1971**, and hosting is running its new
+optimized binary on **8080** (`http://pro.localhost:8080`). CMS migration 39,
+hosting migration 5 and Click migration 10 are applied. All four existing hosting
+tenants synchronized at their current revisions with no errors: two active and
+two suspended. Read-only Click checks confirm matching lifecycle, verified
+domains and valid mapped entitlements. Active configurations contain scoped
+keys; suspended configurations contain only the disabled marker. Both active
+public tenant pages returned 200 with the consent-required public tracker,
+without their private integration keys, and migrated their CMS stores to 39.
+The standalone native Admin route correctly returns 401 without staff login.
+
+Private local platform/configuration files and the previous config backup remain
+under ignored `.local` / hosting `run/`, mode 0600. Consistent pre-migration
+SQLite snapshots are in ignored `.local/native-before-migration/`. Existing
+account passwords are unchanged. Inactive Rust incremental caches were cleared
+when the disk filled; compiled binaries and all data/source were retained.
+CMS was started with a detached process session (automation's shell otherwise
+terminated the nohup child); its normal pidfile/control script tracks it.
+
+## Priority 3 — implemented 2026-11-09
+
+After completing Priority 2, the user explicitly asked to continue on Priority 3.
+Implement the remaining analytics breadth from the original brief: richer
+content/engagement/returning/cohort reports and period comparisons, expanded
+funnel options, newsletter-specific reports, additional attribution dimensions,
+and ROI only with authoritative ad-spend inputs. Inspect current event semantics,
+queries and UI before choosing additive schema/API changes. Define exact metric
+semantics and verification before claiming a metric. Priority 2 is completed;
+do not repeat it or stop to ask whether to proceed with Priority 3.
+
+
+Implemented across Click, CMS and hosting:
+
+- Exact current/previous UTC period comparisons, latest-instance vital
+  comparisons and samples, richer content entry/exit/goal association,
+  acquisition source/medium/channel/campaign/landing groups, event context
+  filters and coarse operating-system reports.
+- Optional consent/DNT/GPC-aware visible-time and scroll telemetry. Hidden time
+  is excluded; SPA time stays with the page being left. In-flight batches and
+  navigation beacons have distinct ownership; bounded retries preserve IDs and
+  occurrence time. UTF-8 campaign limits and sub-60 KB batching preserve the
+  collector contract. Telemetry defaults off and consumes the normal allowance.
+- Provided-visitor new/returning coverage and weekly cohorts with incomplete
+  follow-up cells unavailable. Session-only and legacy coverage remain distinct;
+  there is no historical identity reconstruction. Funnels support literal page
+  prefixes and provided-visitor scope across sessions, preserving configured
+  conversion windows and strict event ordering.
+- Edition-scoped newsletter send/open/click cohorts, unique recipients and link
+  facts, with explicit missing-send diagnostics. CMS 0040 captures the facts
+  transactionally and signs new edition links; legacy links remain supported.
+  The worker hashes recipient identity separately per website/edition. CMS
+  resolves titles locally; no titles, emails or raw member IDs go to Click.
+- Currency-separated campaign costs and returns, extra revenue dimensions,
+  stable source references/revisions, provenance, manager/integration-only
+  writes and retention/deletion. ROI/ROAS require positive cost, complete daily
+  coverage and observed matching attributed revenue. Missing data stays
+  unavailable; no FX or advertising-provider verification is invented.
+- Native CMS content, retention, newsletter, campaigns and performance views,
+  Owner cost entry and optional measurement preferences. Hosted policy remains
+  authoritative; staff exchange tokens still only read reports. Engagement and
+  persistent identity default off; persistent identity requires consent.
+- Updated typed Rust/TypeScript SDKs, OpenAPI and metric/deployment/privacy
+  documentation. The marked demo includes sample editions, engagement, cohorts
+  and explicit campaign-cost coverage, separated from real billable traffic.
+
+Additive schemas: PostgreSQL **0011**, ClickHouse **0003**, CMS SQLite/MySQL
+**0040**; hosting stays at **0005**. Applied migrations were not edited.
+Old queued payloads retain compatible defaults for the new fields.
+
+Final backend verification: formatting and warnings-denied Click Clippy pass;
+**19 unit tests + 20 real PostgreSQL/ClickHouse integration tests pass** with
+`--include-ignored` (39 total, none ignored). Tests cover period boundaries,
+identity/cohort censoring, engagement dedup, cross-session/prefix funnels,
+newsletter cohort matching, revisions/currency/coverage/roles and privacy.
+TypeScript checks and all tracker bundles pass; base IIFE is 5,519 bytes.
+CMS **73/73 headless API tests** pass on SQLite. The newsletter edition/open/
+signed-link test and source-outbox test also pass on **real MySQL**; the open
+rate update now uses portable ROUND and computes the rate before incrementing
+its count. Hosting **44 provisioning unit tests** pass; its five MySQL skip
+paths in that ordinary run are not counted as new database verification.
+Priority 2's separate real-MySQL evidence remains recorded above.
+Sibling Clippy retains existing unrelated toolchain warnings; changed CMS lines
+have no diagnostics. Click strict Clippy is clean.
+
+Two regression fixes were required during final checks. Retention sweeps now
+share a PostgreSQL advisory lock and avoid scheduling ClickHouse mutations
+when no expired rows exist, preventing empty sweeps from rewriting shared
+aggregate parts under local memory pressure. Real-store tests cover both the
+empty-sweep and contended-lock cases. Export form submission now redirects to
+the GET job list, so refreshing while waiting cannot enqueue duplicate exports.
+The browser regression also asserts exactly one job was created.
+
+The metric definitions and deliberate measurement limits are in
+[docs/ANALYTICS_METRICS.md](docs/ANALYTICS_METRICS.md). Automatic CMS revenue
+still does not join member identities to browser sessions; use the backend API
+with explicitly consented identifiers when appropriate. Without attribution,
+campaign ROI is unavailable. Production commercial/operational/package gates
+remain priorities **4–6**; they are not included in this completion claim.
+All source changes remain uncommitted in the three separate repositories.
+
+
+## User-requested pause — 2026-11-09
+
+The user said: "Implement what you have done/think and pause, I will commit and
+push and work later." Work is paused. No commit or push was made. Do not start
+Priority 4 or further changes until the user resumes. Priority 2 is complete;
+Priority 3 source changes are applied and running, with the final full browser
+rerun below still required before calling its verification fully complete.
+
+Latest verification and runtime:
+
+- **3/3 real three-repository bridge scenarios passed**, including native
+  desktop/phone reports, all new native views, cost entry, measurement
+  preferences, consented public attributes and newsletter worker privacy.
+  Screenshots now live in ignored `.local/native-screenshots`, so Root
+  Playwright does not delete them when resetting `test-results`.
+- Latest full Playwright run: **8/9 passed**. The engagement test's final
+  comparison request hit ClickHouse's **total** 3.44 GiB memory limit during
+  concurrent heavy builds/test activity. Its preceding exact 10,000 ms visible
+  time, 8,000/2,000 ms SPA split, max scroll, consent/DNT and identity assertions
+  passed. No assertion was relaxed; the request now asserts its status explicitly
+  before decoding so future failures report the actual API error. The full
+  nine-scenario suite must be rerun after heavy work is idle. The earlier
+  export-refresh failure is fixed and that scenario now passes, asserting
+  exactly one queued job. Do not describe the latest browser suite as 9/9.
+- Backend final **39/39**, CMS API **73/73**, real MySQL edition/outbox tests,
+  strict Click Clippy and tracker checks/build all passed as documented above.
+  CMS and hosting ordinary Clippy runs completed; no diagnostics on new/changed
+  lines. Existing unrelated warnings remain in those sibling repositories.
+- Rebuilt/restarted optimized CMS and hosting, with final Click debug build
+  running. HTTP 200 verified on **8082**, **1971** and **8080**. Standalone CMS
+  schema **40**, hosting schema **5**, Click PostgreSQL **11**/ClickHouse **3**.
+  All four existing hosted mappings are synchronized at their current revision,
+  with no sync errors: two active, two suspended. Active pages return 200 with
+  consent-required public trackers, no private key in HTML and CMS schema 40.
+  Engagement/persistent identity remain off in hosting's default policy.
+  Suspended configurations retain only the disabled marker and no credential.
+  Unauthenticated standalone native Admin returns 401. Existing passwords and
+  user data are preserved. The existing explicitly labeled demo was refreshed.
+- Temporary **8083** test server was stopped for this pause. Main **8082**,
+  standalone **1971** and hosting **8080** remain running. Services must be
+  checked again after a device restart. Inactive Click incremental compilation
+  caches were cleared to free disk; compiled binaries/source/data were retained.
+
+Resume with readiness checks, then source the trusted Click `.env` and rerun
+`npm run test:e2e -- --timeout=180000` with the working Chrome executable.
+Use a dedicated temporary 8083 server as documented above to keep test limiter
+state separate from the user's main app. Run database-intensive suites
+sequentially on this 8 GB Mac; concurrent ClickHouse work can exceed its global
+memory cap even with per-query limits. Inspect errors before deciding whether
+resource configuration or query changes are warranted; do not retry silently or
+weaken correctness assertions. Update this handoff after the actual final result.
+
+Review all **three Git repositories** for the user's commit: Click, Vuuut and
+Vuuut-pro. Their native adapters/migrations must move together. Never stage
+`.env`, `.local`, `run/` private configs, SQLite databases, credentials or test
+screenshots. No remote publication or production readiness claim was made.

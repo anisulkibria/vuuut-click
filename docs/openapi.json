@@ -1536,34 +1536,20 @@
       }
     },
     "/v1/websites/{id}/retention": {
-      "put": {
-        "summary": "Set retention in plan allowance",
-        "responses": {
-          "400": {
-            "description": "Invalid request"
+      "get": {
+        "summary": "Provided-visitor identity coverage and weekly retained-history cohorts",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
           },
-          "401": {
-            "description": "Authentication required"
+          {
+            "apiKey": []
           },
-          "403": {
-            "description": "Forbidden or invalid Origin"
-          },
-          "404": {
-            "description": "Not found or inaccessible"
-          },
-          "409": {
-            "description": "Conflict or allowance reached"
-          },
-          "429": {
-            "description": "Rate or quota limit"
-          },
-          "503": {
-            "description": "Service unavailable"
-          },
-          "204": {
-            "description": "Success"
+          {
+            "nativeRead": []
           }
-        },
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1573,24 +1559,30 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "days": {
-                    "type": "integer",
-                    "minimum": 7,
-                    "maximum": 90
-                  }
-                },
-                "required": [
-                  "days"
-                ]
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorRetention"
+                }
               }
             }
           }
@@ -2010,6 +2002,7 @@
                           "type": "string",
                           "enum": [
                             "page",
+                            "page_prefix",
                             "event"
                           ]
                         },
@@ -2023,6 +2016,14 @@
                     "type": "integer",
                     "minimum": 60,
                     "maximum": 604800
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "session",
+                      "visitor"
+                    ],
+                    "default": "session"
                   }
                 },
                 "required": [
@@ -2208,6 +2209,7 @@
                           "type": "string",
                           "enum": [
                             "page",
+                            "page_prefix",
                             "event"
                           ]
                         },
@@ -2221,6 +2223,14 @@
                     "type": "integer",
                     "minimum": 60,
                     "maximum": 604800
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "session",
+                      "visitor"
+                    ],
+                    "default": "session"
                   }
                 },
                 "required": [
@@ -2420,7 +2430,11 @@
               "enum": [
                 "source",
                 "campaign",
-                "landing"
+                "landing",
+                "medium",
+                "channel",
+                "country",
+                "device"
               ]
             }
           }
@@ -2474,49 +2488,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "external_id": {
-                    "type": "string"
-                  },
-                  "kind": {
-                    "type": "string",
-                    "enum": [
-                      "payment",
-                      "refund",
-                      "member_signup",
-                      "subscription_started",
-                      "subscription_cancelled",
-                      "newsletter_sent",
-                      "newsletter_open",
-                      "newsletter_click"
-                    ]
-                  },
-                  "session_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "visitor_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "path": {
-                    "type": "string"
-                  },
-                  "amount_minor": {
-                    "type": "integer"
-                  },
-                  "currency": {
-                    "type": "string"
-                  },
-                  "occurred_at_ms": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "external_id",
-                  "kind"
-                ]
+                "$ref": "#/components/schemas/BackendFact"
               }
             }
           }
@@ -3709,49 +3681,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "external_id": {
-                    "type": "string"
-                  },
-                  "kind": {
-                    "type": "string",
-                    "enum": [
-                      "payment",
-                      "refund",
-                      "member_signup",
-                      "subscription_started",
-                      "subscription_cancelled",
-                      "newsletter_sent",
-                      "newsletter_open",
-                      "newsletter_click"
-                    ]
-                  },
-                  "session_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "visitor_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "path": {
-                    "type": "string"
-                  },
-                  "amount_minor": {
-                    "type": "integer"
-                  },
-                  "currency": {
-                    "type": "string"
-                  },
-                  "occurred_at_ms": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "external_id",
-                  "kind"
-                ]
+                "$ref": "#/components/schemas/BackendFact"
               }
             }
           }
@@ -3882,6 +3812,501 @@
           }
         }
       }
+    },
+    "/v1/websites/{id}/comparison": {
+      "get": {
+        "summary": "Exact equal-duration period comparison",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodComparison"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/websites/{id}/content": {
+      "get": {
+        "summary": "Entry, exit, goal-session association and optional engagement",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContentMetrics"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/websites/{id}/acquisition": {
+      "get": {
+        "summary": "Acquisition by session entry",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          },
+          {
+            "name": "dimension",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "source",
+                "medium",
+                "campaign",
+                "landing",
+                "channel"
+              ],
+              "default": "channel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AcquisitionMetrics"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/websites/{id}/vitals/comparison": {
+      "get": {
+        "summary": "Latest-instance Web Vitals in two equal-duration windows",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VitalComparison"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/websites/{id}/newsletters": {
+      "get": {
+        "summary": "Newsletter send cohorts with matched recipient activity",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/websites/{id}/events": {
+      "get": {
+        "summary": "Filter minimized event/path/campaign context",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          },
+          {
+            "name": "event",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "campaign",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventDetail"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/websites/{id}/campaign-costs": {
+      "get": {
+        "summary": "Currency-separated campaign costs, coverage and conditional returns",
+        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "nativeRead": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                7,
+                30,
+                90
+              ],
+              "default": 7
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "first_touch",
+                "last_touch",
+                "last_non_direct"
+              ],
+              "default": "last_non_direct"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampaignReturn"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Record or revise a supplied advertising cost with provenance",
+        "description": "Manager session with exact Origin, or website integration credential. Reuse source/reference and revision for replay; a correction increments revision. Conflicts return 409. References are hashed; daily rows expire with website retention and cascade on deletion. Up to 50,000 retained records per website. No charge/provider call occurs.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "integrationKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "description": "Required for customer-session writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Committed/replayed cost record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordedCost"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale/conflicting version or retained-record allowance reached"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3985,6 +4410,16 @@
                 "minimum": 0
               }
             }
+          },
+          "engagement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Engagement"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3992,6 +4427,679 @@
           "session_id",
           "name",
           "url"
+        ],
+        "additionalProperties": false
+      },
+      "Snapshot": {
+        "type": "object",
+        "properties": {
+          "pageviews": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visitors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bounced_sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visible_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "measured_sessions": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "pageviews",
+          "visitors",
+          "sessions",
+          "bounced_sessions",
+          "visible_ms",
+          "measured_sessions"
+        ]
+      },
+      "PeriodComparison": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "previous_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "previous_end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "current": {
+            "$ref": "#/components/schemas/Snapshot"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/Snapshot"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "previous_start",
+          "previous_end",
+          "current",
+          "previous"
+        ]
+      },
+      "ContentMetrics": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "pageviews": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visitors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "converting_sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visible_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "measured_sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mean_scroll_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "pageviews",
+          "visitors",
+          "sessions",
+          "entries",
+          "exits",
+          "converting_sessions",
+          "visible_ms",
+          "measured_sessions",
+          "mean_scroll_percent"
+        ]
+      },
+      "AcquisitionMetrics": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pageviews": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visitors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "converting_sessions": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "label",
+          "sessions",
+          "pageviews",
+          "visitors",
+          "converting_sessions"
+        ]
+      },
+      "VisitorRetention": {
+        "type": "object",
+        "properties": {
+          "history_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "identity": {
+            "type": "object",
+            "properties": {
+              "new_visitors": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "returning_visitors": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "session_only_sessions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unclassified_sessions": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "new_visitors",
+              "returning_visitors",
+              "session_only_sessions",
+              "unclassified_sessions"
+            ]
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "week": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "visitors": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "retained": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "week",
+                "visitors",
+                "retained"
+              ]
+            }
+          }
+        },
+        "required": [
+          "history_start",
+          "identity",
+          "cohorts"
+        ]
+      },
+      "VitalComparison": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "previous_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "previous_end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "current": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "metric": {
+                  "type": "string"
+                },
+                "samples": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "p50": {
+                  "type": "number"
+                },
+                "p75": {
+                  "type": "number"
+                },
+                "p95": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "metric",
+                "samples",
+                "p50",
+                "p75",
+                "p95"
+              ]
+            }
+          },
+          "previous": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "metric": {
+                  "type": "string"
+                },
+                "samples": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "p50": {
+                  "type": "number"
+                },
+                "p75": {
+                  "type": "number"
+                },
+                "p95": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "metric",
+                "samples",
+                "p50",
+                "p75",
+                "p95"
+              ]
+            }
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "previous_start",
+          "previous_end",
+          "current",
+          "previous"
+        ]
+      },
+      "NewsletterReport": {
+        "type": "object",
+        "properties": {
+          "editions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "newsletter_id": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "sent_recipients": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "opened_recipients": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "clicked_recipients": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "link_click_facts": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "newsletter_id",
+                "sent_recipients",
+                "opened_recipients",
+                "clicked_recipients",
+                "link_click_facts"
+              ]
+            }
+          },
+          "unassigned_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "activity_outside_send_cohort": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "editions",
+          "unassigned_events",
+          "activity_outside_send_cohort"
+        ]
+      },
+      "EventDetail": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "campaign": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visitors": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "event",
+          "path",
+          "campaign",
+          "count",
+          "sessions",
+          "visitors"
+        ]
+      },
+      "CostInput": {
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "campaign": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CAD",
+              "AUD",
+              "NZD",
+              "SGD",
+              "INR",
+              "BDT",
+              "JPY"
+            ]
+          },
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000000
+          },
+          "source": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]{1,32}$"
+          }
+        },
+        "required": [
+          "reference",
+          "revision",
+          "day",
+          "campaign",
+          "currency",
+          "amount_minor",
+          "source"
+        ],
+        "additionalProperties": false
+      },
+      "RecordedCost": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "revision"
+        ]
+      },
+      "CampaignReturn": {
+        "type": "object",
+        "properties": {
+          "campaign": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "net_revenue_minor": {
+            "type": "string"
+          },
+          "revenue_recorded": {
+            "type": "boolean"
+          },
+          "attribution_complete": {
+            "type": "boolean"
+          },
+          "cost_minor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "covered_days": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expected_days": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roi_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roas": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "campaign",
+          "currency",
+          "net_revenue_minor",
+          "revenue_recorded",
+          "attribution_complete",
+          "cost_minor",
+          "covered_days",
+          "expected_days",
+          "sources",
+          "roi_percent",
+          "roas"
+        ]
+      },
+      "Engagement": {
+        "type": "object",
+        "properties": {
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30000
+          },
+          "scroll_percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "duration_ms",
+          "scroll_percent"
+        ],
+        "additionalProperties": false
+      },
+      "BackendFact": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "payment",
+              "refund",
+              "member_signup",
+              "subscription_started",
+              "subscription_cancelled",
+              "newsletter_sent",
+              "newsletter_open",
+              "newsletter_click"
+            ]
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visitor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "maximum": 1000000000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CAD",
+              "AUD",
+              "NZD",
+              "SGD",
+              "INR",
+              "BDT",
+              "JPY"
+            ]
+          },
+          "occurred_at_ms": {
+            "type": "integer"
+          },
+          "newsletter_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "recipient_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "external_id",
+          "kind"
         ],
         "additionalProperties": false
       }

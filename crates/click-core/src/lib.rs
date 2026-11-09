@@ -27,6 +27,15 @@ pub struct BrowserEvent {
     pub occurred_at_ms: Option<i64>,
     #[serde(default)]
     pub vital: Option<Vital>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engagement: Option<Engagement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Engagement {
+    pub duration_ms: u32,
+    pub scroll_percent: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +57,14 @@ pub struct CleanEvent {
     pub amount_minor: i64,
     #[serde(default)]
     pub currency: String,
+    #[serde(default)]
+    pub visitor_mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engagement: Option<Engagement>,
+    #[serde(default)]
+    pub newsletter_id: String,
+    #[serde(default)]
+    pub recipient_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +115,14 @@ impl BrowserEvent {
             || (self.name == "web_vital") != self.vital.is_some()
         {
             return Err(ValidationError("Invalid Web Vital event"));
+        }
+        if (self.name == "web_engagement") != self.engagement.is_some()
+            || self
+                .engagement
+                .as_ref()
+                .is_some_and(|e| e.duration_ms > 30000 || e.scroll_percent > 100)
+        {
+            return Err(ValidationError("Invalid engagement measurement"));
         }
         if self.event_id.is_nil()
             || self.session_id.is_nil()
@@ -157,6 +182,15 @@ impl BrowserEvent {
             vital: self.vital,
             amount_minor: 0,
             currency: String::new(),
+            visitor_mode: if self.visitor_id.is_some() {
+                "provided"
+            } else {
+                "session"
+            }
+            .into(),
+            engagement: self.engagement,
+            newsletter_id: String::new(),
+            recipient_id: String::new(),
         })
     }
 }
@@ -265,6 +299,7 @@ mod tests {
             utm_campaign: String::new(),
             occurred_at_ms: None,
             vital: None,
+            engagement: None,
         }
     }
     #[test]
@@ -334,5 +369,40 @@ mod tests {
         assert!(!Role::Viewer.can_edit_goals());
         assert!(!Role::Analyst.can_manage());
         assert!(Role::Owner.can_manage());
+    }
+    #[test]
+    fn engagement_is_bounded_and_identity_coverage_is_explicit() {
+        let site = Uuid::new_v4();
+        let mut e = event();
+        assert_eq!(
+            e.clone()
+                .clean(site, "https://example.com")
+                .unwrap()
+                .visitor_mode,
+            "session"
+        );
+        e.visitor_id = Some(Uuid::new_v4());
+        assert_eq!(
+            e.clone()
+                .clean(site, "https://example.com")
+                .unwrap()
+                .visitor_mode,
+            "provided"
+        );
+        e.name = "web_engagement".into();
+        e.engagement = Some(Engagement {
+            duration_ms: 30000,
+            scroll_percent: 100,
+        });
+        assert!(e.clone().clean(site, "https://example.com").is_ok());
+        e.engagement.as_mut().unwrap().duration_ms = 30001;
+        assert!(e.clone().clean(site, "https://example.com").is_err());
+        e.engagement = Some(Engagement {
+            duration_ms: 1,
+            scroll_percent: 101,
+        });
+        assert!(e.clone().clean(site, "https://example.com").is_err());
+        e.engagement = None;
+        assert!(e.clean(site, "https://example.com").is_err());
     }
 }

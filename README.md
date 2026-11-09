@@ -2,7 +2,7 @@
 
 Independent Rust analytics SaaS in the same Material 3 style as Vuuut and Vuuut-pro. Rust renders the dashboard directly; there is no React/Next/Node server. PostgreSQL durably accepts events and meters usage; a retrying worker delivers to ClickHouse; reports query actual analytics data.
 
-The main standalone SaaS workflows and advanced reports are implemented for local development. Native Vuuut/Vuuut-pro integration is implemented, with final regression verification recorded in the handoff. **Production release gates remain unfinished.** Start with [CONTINUE.md](CONTINUE.md) to resume on any device; the full original requirements are preserved in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md).
+The main standalone SaaS workflows and advanced reports are implemented for local development. Native Vuuut/Vuuut-pro integration is complete and verified locally; Priority 3 analytics breadth is implemented, including engagement, retention/cohorts, newsletter editions and campaign costs; its final full-browser rerun is pending at the user-requested pause. Verification is recorded in the handoff. **Production release gates remain unfinished.** Start with [CONTINUE.md](CONTINUE.md) to resume on any device; the full original requirements are preserved in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md).
 
 ## Run and experience the app
 

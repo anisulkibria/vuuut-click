@@ -515,7 +515,8 @@ async fn browser(origin: &str, cookie: &str, mode: &str) {
         return;
     }
     let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("browser.mjs");
-    let screenshots = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-results");
+    let screenshots =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/native-screenshots");
     let status = tokio::process::Command::new("node")
         .arg(script)
         .arg(mode)
@@ -752,5 +753,88 @@ async fn standalone_native_admin_consent_rotation_disconnect_and_privilege_bound
     assert!(!html.contains(&format!("data-website=\"{}\"", configured.collection_id)));
     server.abort();
     state.db.close().await;
+    h.finish().await;
+}
+
+#[tokio::test]
+#[ignore = "requires development PostgreSQL and ClickHouse; sibling CMS source capture"]
+async fn newsletter_editions_cross_the_signed_worker_with_no_member_identity_or_title() {
+    let h = Harness::new().await;
+    let c = h.client();
+    h.register(&c, "editions@bridge.test").await;
+    let org = h.org(&c).await;
+    let site = h.site(&c, org).await;
+    let id = Uuid::parse_str(site["id"].as_str().unwrap()).unwrap();
+    sqlx::query("UPDATE websites SET verified_at=now() WHERE id=$1")
+        .bind(id)
+        .execute(&h.store.pg)
+        .await
+        .unwrap();
+    let key = click_server::auth::secret();
+    sqlx::query("INSERT INTO api_keys(id,website_id,token_hash,label,scope) VALUES($1,$2,$3,'Edition worker','integration')").bind(Uuid::new_v4()).bind(id).bind(click_core::digest(&key)).execute(&h.store.pg).await.unwrap();
+    let (state, _) = cms(&h.base, json!({})).await;
+    member(&state.db, "edition-reader").await;
+    let uuid: String = sqlx::query_scalar("SELECT uuid FROM members WHERE id='edition-reader'")
+        .fetch_one(&state.db)
+        .await
+        .unwrap();
+    let connection = serde_json::from_value(
+        json!({"baseUrl":h.base,"websiteId":id,"integrationKey":key,"consentRequired":true}),
+    )
+    .unwrap();
+    ghost_api::click::connect(&state, connection).await.unwrap();
+    let now = ghost_core::dates::now_db();
+    let mut tx = state.db.begin().await.unwrap();
+    sqlx::query("INSERT INTO posts(id,uuid,title,slug,status,type,created_at) VALUES('edition-post','edition-post','A private CMS-only title','edition-post','published','post',?)").bind(&now).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO emails(id,post_id,status,created_at) VALUES('worker-edition','edition-post','submitted',?)").bind(&now).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO email_recipients(id,email_id,member_id,member_uuid,status,created_at) VALUES('worker-recipient','worker-edition','edition-reader',?,'sent',?)").bind(&uuid).bind(&now).execute(&mut *tx).await.unwrap();
+    sqlx::query("UPDATE email_recipients SET opened_at=? WHERE id='worker-recipient'")
+        .bind(&now)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO newsletter_links(id,post_id,from_url,to_url,created_at,updated_at) VALUES('edition-link','edition-post','https://source.test/?private=secret','https://target.test/?token=secret',?,?)").bind(&now).bind(&now).execute(&mut *tx).await.unwrap();
+    for source in ["click-first", "click-again"] {
+        sqlx::query("INSERT INTO newsletter_clicks(id,link_id,member_uuid,email_id,created_at) VALUES(?,'edition-link',?,'worker-edition',?)").bind(source).bind(&uuid).bind(&now).execute(&mut *tx).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+    assert_eq!(ghost_api::click::drain_once(&state).await.unwrap(), 3);
+    let payloads: Vec<Value> =
+        sqlx::query_scalar("SELECT payload FROM event_outbox WHERE website_id=$1")
+            .bind(id)
+            .fetch_all(&h.store.pg)
+            .await
+            .unwrap();
+    assert_eq!(payloads.len(), 3);
+    let serialized = serde_json::to_string(&payloads).unwrap();
+    for private in [
+        &uuid,
+        "worker-edition",
+        "edition-reader@native.test",
+        "A private CMS-only title",
+        "private=secret",
+        "token=secret",
+    ] {
+        assert!(!serialized.contains(private));
+    }
+    h.store.drain_once().await.unwrap();
+    let report: Value = c
+        .get(format!("{}/v1/websites/{id}/newsletters?days=7", h.base))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        report["editions"][0]["newsletter_id"],
+        ghost_api::click::edition_hash(&id.to_string(), "worker-edition")
+    );
+    assert_eq!(report["editions"][0]["sent_recipients"], 1);
+    assert_eq!(report["editions"][0]["opened_recipients"], 1);
+    assert_eq!(report["editions"][0]["clicked_recipients"], 1);
+    assert_eq!(report["editions"][0]["link_click_facts"], 1);
     h.finish().await;
 }
