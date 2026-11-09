@@ -16,16 +16,32 @@
         "summary": "Register",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "requestBody": {
@@ -52,7 +68,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_auth_register",
+        "parameters": []
       }
     },
     "/v1/auth/login": {
@@ -60,16 +78,32 @@
         "summary": "Login",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "requestBody": {
@@ -96,7 +130,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_auth_login",
+        "parameters": []
       }
     },
     "/v1/auth/logout": {
@@ -107,13 +143,22 @@
             "description": "Successful response"
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -123,7 +168,9 @@
           {
             "apiKey": []
           }
-        ]
+        ],
+        "operationId": "post_v1_auth_logout",
+        "parameters": []
       }
     },
     "/v1/me": {
@@ -131,16 +178,32 @@
         "summary": "Current user (session only)",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -150,7 +213,9 @@
           {
             "apiKey": []
           }
-        ]
+        ],
+        "operationId": "get_v1_me",
+        "parameters": []
       }
     },
     "/v1/organizations": {
@@ -158,16 +223,35 @@
         "summary": "List member workspaces (session only)",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Organization"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -177,34 +261,46 @@
           {
             "apiKey": []
           }
-        ]
+        ],
+        "operationId": "get_v1_organizations",
+        "parameters": []
       },
       "post": {
         "summary": "Create workspace",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "201": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Id"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "requestBody": {
@@ -224,7 +320,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_organizations",
+        "parameters": []
       }
     },
     "/v1/websites": {
@@ -232,16 +330,35 @@
         "summary": "List accessible websites (session only)",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Website"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -251,22 +368,40 @@
           {
             "apiKey": []
           }
-        ]
+        ],
+        "operationId": "get_v1_websites",
+        "parameters": []
       },
       "post": {
         "summary": "Create website (owner/admin session)",
         "responses": {
           "201": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Website"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -302,7 +437,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_websites",
+        "parameters": []
       }
     },
     "/v1/websites/{id}/verify": {
@@ -313,16 +450,25 @@
             "description": "Successful response"
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Workspace inactive, or origin/challenge changed during DNS verification"
+            "$ref": "#/components/responses/Error409"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -344,7 +490,8 @@
             }
           }
         ],
-        "description": "The DNS lookup runs without holding a workspace lock. Commit rechecks management permission and active status under the organization lock and requires the exact origin/challenge to remain unchanged."
+        "description": "The DNS lookup runs without holding a workspace lock. Commit rechecks management permission and active status under the organization lock and requires the exact origin/challenge to remain unchanged.",
+        "operationId": "post_v1_websites_id_verify"
       }
     },
     "/v1/websites/{id}/overview": {
@@ -352,16 +499,32 @@
         "summary": "Exact traffic totals, daily series and 5-minute activity",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -400,7 +563,8 @@
             }
           }
         ],
-        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count.",
+        "operationId": "get_v1_websites_id_overview"
       }
     },
     "/v1/websites/{id}/breakdown/{dimension}": {
@@ -408,16 +572,35 @@
         "summary": "Top 20 countries/pages/referrers/campaigns/devices/browsers/events",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Breakdown"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -463,7 +646,8 @@
               "default": 7
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_websites_id_breakdown_dimension"
       }
     },
     "/v1/websites/{id}/goals": {
@@ -471,16 +655,35 @@
         "summary": "List goals",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Goal"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -504,22 +707,39 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_websites_id_goals"
       },
       "post": {
         "summary": "Create goal (owner/admin/analyst session)",
         "responses": {
           "201": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -562,7 +782,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "post_v1_websites_id_goals"
       }
     },
     "/v1/websites/{id}/keys": {
@@ -570,28 +791,38 @@
         "summary": "Create website credential; raw value returned once",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "201": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -629,34 +860,48 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_websites_id_keys"
       },
       "get": {
         "summary": "List credential metadata; never raw credentials",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KeyRecord"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -669,7 +914,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_websites_id_keys"
       }
     },
     "/v1/websites/{id}/keys/{key_id}": {
@@ -680,13 +926,22 @@
             "description": "Successful response"
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -716,34 +971,45 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "delete_v1_websites_id_keys_key_id"
       },
       "put": {
         "summary": "Atomically revoke old credential and issue replacement",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -791,7 +1057,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "put_v1_websites_id_keys_key_id"
       }
     },
     "/v1/organizations/{id}/usage": {
@@ -799,16 +1066,32 @@
         "summary": "Current UTC monthly accepted usage and plan",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usage"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -829,7 +1112,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_organizations_id_usage"
       }
     },
     "/v1/collect/{token}": {
@@ -837,16 +1121,32 @@
         "summary": "Durably accept a verified-origin browser batch. Origin header required.",
         "responses": {
           "202": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchAcceptance"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "requestBody": {
@@ -882,7 +1182,8 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "operationId": "post_v1_collect_token"
       },
       "options": {
         "summary": "Verified-origin collection preflight",
@@ -891,13 +1192,22 @@
             "description": "Successful response"
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "parameters": [
@@ -909,7 +1219,8 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "operationId": "options_v1_collect_token"
       }
     },
     "/healthz": {
@@ -917,18 +1228,36 @@
         "summary": "Process liveness",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_healthz",
+        "parameters": []
       }
     },
     "/readyz": {
@@ -936,18 +1265,36 @@
         "summary": "PostgreSQL and ClickHouse readiness",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_readyz",
+        "parameters": []
       }
     },
     "/v1/openapi.json": {
@@ -955,18 +1302,56 @@
         "summary": "OpenAPI document",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "openapi",
+                    "info",
+                    "paths",
+                    "components"
+                  ],
+                  "properties": {
+                    "openapi": {
+                      "type": "string"
+                    },
+                    "info": {
+                      "type": "object"
+                    },
+                    "paths": {
+                      "type": "object"
+                    },
+                    "components": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_openapi_json",
+        "parameters": []
       }
     },
     "/owner/v1/me": {
@@ -979,12 +1364,30 @@
         ],
         "responses": {
           "200": {
-            "description": "Authenticated platform owner"
+            "description": "Authenticated platform owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No valid owner session or owner grant revoked"
+            "$ref": "#/components/responses/Error401"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_owner_v1_me",
+        "parameters": []
       }
     },
     "/v1/organizations/{org}": {
@@ -992,28 +1395,31 @@
         "summary": "Rename workspace",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1044,7 +1450,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "patch_v1_organizations_org"
       }
     },
     "/v1/organizations/{org}/members": {
@@ -1052,28 +1459,41 @@
         "summary": "List team members",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Member"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1086,7 +1506,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_organizations_org_members"
       }
     },
     "/v1/organizations/{org}/members/{user}": {
@@ -1094,28 +1515,31 @@
         "summary": "Change member role",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1161,34 +1585,38 @@
               }
             }
           }
-        }
+        },
+        "operationId": "patch_v1_organizations_org_members_user"
       },
       "delete": {
         "summary": "Remove member",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1210,7 +1638,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "delete_v1_organizations_org_members_user"
       }
     },
     "/v1/organizations/{org}/invitations": {
@@ -1218,54 +1647,38 @@
         "summary": "Invite teammate; returns one-use accept_url",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "201": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "id",
-                    "accept_url",
-                    "emailed"
-                  ],
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "accept_url": {
-                      "type": "string",
-                      "format": "uri"
-                    },
-                    "emailed": {
-                      "type": "boolean",
-                      "description": "Queued in transactional mail outbox"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Invitation"
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1306,7 +1719,8 @@
             }
           }
         },
-        "description": "Creates the invitation and queues its email atomically when delivery is configured. emailed means queued, not confirmed delivered. accept_url is also returned for manual sharing."
+        "description": "Creates the invitation and queues its email atomically when delivery is configured. emailed means queued, not confirmed delivered. accept_url is also returned for manual sharing.",
+        "operationId": "post_v1_organizations_org_invitations"
       }
     },
     "/v1/organizations/{org}/invitations/{id}": {
@@ -1314,28 +1728,31 @@
         "summary": "Revoke invitation",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1357,7 +1774,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "delete_v1_organizations_org_invitations_id"
       }
     },
     "/v1/invitations/accept": {
@@ -1365,28 +1783,38 @@
         "summary": "Accept with invited email account",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationId"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "requestBody": {
@@ -1406,7 +1834,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_invitations_accept",
+        "parameters": []
       }
     },
     "/v1/websites/{id}": {
@@ -1414,28 +1844,31 @@
         "summary": "Update website; origin change resets verification",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1474,34 +1907,45 @@
               }
             }
           }
-        }
+        },
+        "operationId": "patch_v1_websites_id"
       },
       "delete": {
         "summary": "Queue durable website deletion",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "202": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Id"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1532,13 +1976,66 @@
               }
             }
           }
-        }
+        },
+        "operationId": "delete_v1_websites_id"
       }
     },
     "/v1/websites/{id}/retention": {
+      "put": {
+        "summary": "Set retention",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "days"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Retention updated"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "operationId": "put_v1_websites_id_retention",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
       "get": {
-        "summary": "Provided-visitor identity coverage and weekly retained-history cohorts",
-        "description": "See docs/ANALYTICS_METRICS.md for exact metric, identity, coverage and retention semantics. Website authorization and existing report resource budgets apply.",
+        "summary": "Returning visitor coverage and retention cohorts",
         "security": [
           {
             "session": []
@@ -1550,34 +2047,9 @@
             "nativeRead": []
           }
         ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "days",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "enum": [
-                1,
-                7,
-                30,
-                90
-              ],
-              "default": 7
-            }
-          }
-        ],
         "responses": {
           "200": {
-            "description": "Recorded observations; unavailable denominators/cells are explicit.",
+            "description": "Retention report",
             "content": {
               "application/json": {
                 "schema": {
@@ -1585,8 +2057,29 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_retention",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
       }
     },
     "/v1/websites/{id}/exports": {
@@ -1594,28 +2087,41 @@
         "summary": "List recent exports",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Export"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1628,34 +2134,45 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_websites_id_exports"
       },
       "post": {
         "summary": "Queue CSV export; analyst or higher",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "202": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Id"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1692,7 +2209,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_websites_id_exports"
       }
     },
     "/v1/exports/{id}/download": {
@@ -1700,28 +2218,38 @@
         "summary": "Download CSV before 24-hour expiry",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1734,7 +2262,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_exports_id_download"
       }
     },
     "/v1/deletions/{id}": {
@@ -1742,28 +2271,38 @@
         "summary": "Requester-only deletion job status",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deletion"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1776,7 +2315,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_deletions_id"
       }
     },
     "/v1/websites/{id}/goals/{goal}": {
@@ -1784,28 +2324,31 @@
         "summary": "Delete event-match goal",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1827,22 +2370,39 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "delete_v1_websites_id_goals_goal"
       },
       "patch": {
         "summary": "Edit an event-match goal in place",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Resource not found"
+            "$ref": "#/components/responses/Error404"
           },
           "200": {
-            "description": "Updated definition; validation and workspace permissions match creation"
+            "description": "Updated definition; validation and workspace permissions match creation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "security": [
@@ -1894,7 +2454,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "patch_v1_websites_id_goals_goal"
       }
     },
     "/v1/websites/{id}/funnels": {
@@ -1902,28 +2463,41 @@
         "summary": "List funnel definitions",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Funnel"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -1936,34 +2510,45 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "get_v1_websites_id_funnels"
       },
       "post": {
         "summary": "Create ordered session funnel",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "201": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Id"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2033,7 +2618,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_websites_id_funnels"
       }
     },
     "/v1/websites/{id}/funnels/{funnel}": {
@@ -2041,28 +2627,38 @@
         "summary": "Report funnel conversion by ordered page/event steps",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunnelReport"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2085,34 +2681,38 @@
             }
           }
         ],
-        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count.",
+        "operationId": "get_v1_websites_id_funnels_funnel"
       },
       "delete": {
         "summary": "Remove funnel",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2134,34 +2734,38 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "operationId": "delete_v1_websites_id_funnels_funnel"
       },
       "patch": {
         "summary": "Edit funnel name, ordered steps and conversion window in place",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
-          "200": {
-            "description": "Updated definition; validation and workspace permissions match creation"
+          "204": {
+            "description": "Funnel updated"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2240,7 +2844,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "patch_v1_websites_id_funnels_funnel"
       }
     },
     "/v1/websites/{id}/journeys": {
@@ -2248,28 +2853,41 @@
         "summary": "Latest 25 pseudonymous journeys, first 100 events each",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Journey"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2297,7 +2915,8 @@
             }
           }
         ],
-        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count.",
+        "operationId": "get_v1_websites_id_journeys"
       }
     },
     "/v1/websites/{id}/vitals": {
@@ -2305,28 +2924,41 @@
         "summary": "Latest metric-instance p50/p75/p95 performance samples",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Vital"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2354,7 +2986,8 @@
             }
           }
         ],
-        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count.",
+        "operationId": "get_v1_websites_id_vitals"
       }
     },
     "/v1/websites/{id}/revenue": {
@@ -2362,28 +2995,41 @@
         "summary": "First/last/non-direct net revenue attribution, separated by currency",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Revenue"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2439,7 +3085,8 @@
             }
           }
         ],
-        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count."
+        "description": " Reports allow four concurrent requests per workspace and sixteen per process. Busy responses use 503 and Retry-After: 2. Journeys show at most 25 sessions and 100 ordered steps per session; events is the full in-period count.",
+        "operationId": "get_v1_websites_id_revenue"
       }
     },
     "/v1/websites/{id}/backend-events": {
@@ -2447,28 +3094,38 @@
         "summary": "Accept authoritative backend event using integration credential",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "202": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Acceptance"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "description": "Stable external_id+kind is idempotent per website. Payment/refund amount is positive minor units; server negates refunds. Browser events cannot carry money.",
@@ -2492,7 +3149,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_websites_id_backend_events"
       }
     },
     "/v1/account/profile": {
@@ -2500,28 +3158,31 @@
         "summary": "Update display name",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "requestBody": {
@@ -2541,7 +3202,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "patch_v1_account_profile",
+        "parameters": []
       }
     },
     "/v1/account/password": {
@@ -2549,28 +3212,38 @@
         "summary": "Change password and revoke other customer sessions",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "requestBody": {
@@ -2594,7 +3267,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_account_password",
+        "parameters": []
       }
     },
     "/v1/account/sessions/revoke-others": {
@@ -2602,30 +3277,35 @@
         "summary": "Revoke other customer sessions",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
-        }
+        },
+        "operationId": "post_v1_account_sessions_revoke_others",
+        "parameters": []
       }
     },
     "/v1/account/reset/request": {
@@ -2633,28 +3313,31 @@
         "summary": "Queue password reset for eligible account",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "202": {
-            "description": "Success"
+            "description": "Request accepted; empty body"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "requestBody": {
@@ -2674,7 +3357,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_account_reset_request",
+        "parameters": []
       }
     },
     "/v1/account/reset": {
@@ -2682,28 +3367,31 @@
         "summary": "Consume one-use reset token",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "requestBody": {
@@ -2727,7 +3415,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_account_reset",
+        "parameters": []
       }
     },
     "/v1/account/verification": {
@@ -2735,30 +3425,35 @@
         "summary": "Queue email verification",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "202": {
-            "description": "Success"
+            "description": "Request accepted; empty body"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
-        }
+        },
+        "operationId": "post_v1_account_verification",
+        "parameters": []
       }
     },
     "/v1/account/verify": {
@@ -2766,28 +3461,31 @@
         "summary": "Consume one-use verification token",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "requestBody": {
@@ -2807,7 +3505,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_v1_account_verify",
+        "parameters": []
       }
     },
     "/v1/billing/webhooks/stripe": {
@@ -2815,31 +3515,36 @@
         "summary": "Process signature-verified Stripe notification",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Webhook processed; empty body"
           },
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
-        "description": "Raw provider body and Stripe-Signature header; no cookie/Origin required. Fetches authoritative current subscription state. Deduplicates event IDs transactionally."
+        "description": "Raw provider body and Stripe-Signature header; no cookie/Origin required. Fetches authoritative current subscription state. Deduplicates event IDs transactionally.",
+        "operationId": "post_v1_billing_webhooks_stripe",
+        "parameters": []
       }
     },
     "/owner/auth/login": {
@@ -2847,22 +3552,33 @@
         "summary": "Owner password sign-in; sets owner session or redirects to MFA with a pending cookie",
         "responses": {
           "303": {
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Same-site navigation, or validated hosted provider URL"
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2897,7 +3613,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_owner_auth_login"
       }
     },
     "/owner/auth/verify": {
@@ -2905,45 +3622,68 @@
         "summary": "Owner second-factor form",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
-        }
+        },
+        "operationId": "get_owner_auth_verify",
+        "parameters": []
       },
       "post": {
         "summary": "Consume authenticator or recovery code; five attempts per challenge; sets full owner session",
         "responses": {
           "303": {
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Same-site navigation, or validated hosted provider URL"
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -2979,7 +3719,8 @@
           {
             "ownerPending": []
           }
-        ]
+        ],
+        "operationId": "post_owner_auth_verify"
       }
     },
     "/owner/account": {
@@ -2987,29 +3728,41 @@
         "summary": "Owner profile, password, MFA and session settings",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "security": [
           {
             "ownerSession": []
           }
-        ]
+        ],
+        "operationId": "get_owner_account",
+        "parameters": []
       }
     },
     "/owner/account/action": {
@@ -3017,25 +3770,42 @@
         "summary": "Owner account action; profile, password, sessions, enroll, confirm, codes or disable",
         "responses": {
           "303": {
-            "description": "Success"
+            "description": "Account updated; return to owner account",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
           },
           "200": {
-            "description": "Authenticator enrollment or one-time recovery codes (private HTML)"
+            "description": "Authenticator enrollment or one-time recovery codes (private HTML)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -3093,7 +3863,8 @@
             "ownerSession": []
           }
         ],
-        "description": "Profile requires display_name. Other actions require current_password. Password requires new_password and a fresh code when MFA is enabled. Confirm, codes and disable require code. Enroll and confirm return setup/one-time recovery-code pages (200); other actions redirect (303). Security actions recheck session, password and grant under the user-row lock."
+        "description": "Profile requires display_name. Other actions require current_password. Password requires new_password and a fresh code when MFA is enabled. Confirm, codes and disable require code. Enroll and confirm return setup/one-time recovery-code pages (200); other actions redirect (303). Security actions recheck session, password and grant under the user-row lock.",
+        "operationId": "post_owner_account_action"
       }
     },
     "/owner/forgot-password": {
@@ -3101,24 +3872,36 @@
         "summary": "Owner recovery request form",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
-        }
+        },
+        "operationId": "get_owner_forgot_password",
+        "parameters": []
       }
     },
     "/owner/account/reset/request": {
@@ -3126,22 +3909,32 @@
         "summary": "Queue eligible owner reset mail; response never discloses account existence",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -3172,7 +3965,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_owner_account_reset_request"
       }
     },
     "/owner/account/reset": {
@@ -3180,45 +3974,67 @@
         "summary": "Owner password reset form; token arrives via URL fragment",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
-        }
+        },
+        "operationId": "get_owner_account_reset",
+        "parameters": []
       },
       "post": {
         "summary": "Use one-time owner reset token and new password; MFA remains required when enabled",
         "responses": {
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid input or expired/reused code/link"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication expired or missing"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Invalid Origin or owner grant"
+            "$ref": "#/components/responses/Error403"
           },
           "429": {
-            "description": "Request allowance reached; Retry-After: 60"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Temporarily unavailable; Retry-After: 2"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "parameters": [
@@ -3257,7 +4073,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_owner_account_reset"
       }
     },
     "/native/v1/tenants/{tenant}": {
@@ -3282,25 +4099,38 @@
         ],
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Invalid credential/assertion"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Unverified origin or disabled workspace"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Inaccessible website"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Stale/conflicting/terminal revision"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate limit"
+            "$ref": "#/components/responses/Error429"
           },
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provisioned"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "requestBody": {
@@ -3346,7 +4176,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "put_native_v1_tenants_tenant"
       }
     },
     "/native/v1/websites/{id}/connect": {
@@ -3371,25 +4202,38 @@
         ],
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Invalid credential/assertion"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Unverified origin or disabled workspace"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Inaccessible website"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Stale/conflicting/terminal revision"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate limit"
+            "$ref": "#/components/responses/Error429"
           },
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeConnection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "requestBody": {
@@ -3414,7 +4258,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_native_v1_websites_id_connect"
       }
     },
     "/native/v1/websites/{id}/exchange": {
@@ -3439,25 +4284,38 @@
         ],
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Invalid credential/assertion"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Unverified origin or disabled workspace"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Inaccessible website"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Stale/conflicting/terminal revision"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate limit"
+            "$ref": "#/components/responses/Error429"
           },
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
         },
         "requestBody": {
@@ -3479,7 +4337,8 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post_native_v1_websites_id_exchange"
       }
     },
     "/native/v1/websites/{id}/rotate": {
@@ -3513,27 +4372,41 @@
         ],
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Invalid credential/assertion"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Unverified origin or disabled workspace"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Inaccessible website"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Stale/conflicting/terminal revision"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate limit"
+            "$ref": "#/components/responses/Error429"
           },
           "200": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebsiteId"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "post_native_v1_websites_id_rotate"
       }
     },
     "/native/v1/websites/{id}/disconnect": {
@@ -3558,27 +4431,34 @@
         ],
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Invalid credential/assertion"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Unverified origin or disabled workspace"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Inaccessible website"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Stale/conflicting/terminal revision"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate limit"
+            "$ref": "#/components/responses/Error429"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "post_native_v1_websites_id_disconnect"
       }
     },
     "/native/v1/websites/{id}/verify": {
@@ -3603,27 +4483,34 @@
         ],
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Invalid credential/assertion"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Unverified origin or disabled workspace"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Inaccessible website"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Stale/conflicting/terminal revision"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate limit"
+            "$ref": "#/components/responses/Error429"
           },
           "204": {
             "description": "Success"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "post_native_v1_websites_id_verify"
       }
     },
     "/native/v1/websites/{id}/events": {
@@ -3631,28 +4518,38 @@
         "summary": "Accept a raw-body-signed native CMS event",
         "responses": {
           "400": {
-            "description": "Invalid request"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Forbidden or invalid Origin"
+            "$ref": "#/components/responses/Error403"
           },
           "404": {
-            "description": "Not found or inaccessible"
+            "$ref": "#/components/responses/Error404"
           },
           "409": {
-            "description": "Conflict or allowance reached"
+            "$ref": "#/components/responses/Error409"
           },
           "429": {
-            "description": "Rate or quota limit"
+            "$ref": "#/components/responses/Error429"
           },
           "503": {
-            "description": "Service unavailable"
+            "$ref": "#/components/responses/Error503"
           },
           "202": {
-            "description": "Success"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Acceptance"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
           }
         },
         "description": "HMAC-SHA256 over timestamp + period + raw body with the integration credential; timestamp send window is 5 minutes past / 60 seconds future. Preserves original event time and idempotency. Maximum 16 KiB.",
@@ -3690,7 +4587,8 @@
           {
             "integrationKey": []
           }
-        ]
+        ],
+        "operationId": "post_native_v1_websites_id_events"
       }
     },
     "/v1/websites/{id}/native-report": {
@@ -3748,69 +4646,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "activity",
-                    "page"
-                  ],
-                  "properties": {
-                    "activity": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "label": {
-                            "type": "string"
-                          },
-                          "count": {
-                            "type": "integer",
-                            "format": "int64"
-                          }
-                        }
-                      }
-                    },
-                    "page": {
-                      "oneOf": [
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "path": {
-                              "type": "string"
-                            },
-                            "pageviews": {
-                              "type": "integer"
-                            },
-                            "visitors": {
-                              "type": "integer"
-                            },
-                            "sessions": {
-                              "type": "integer"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
+                  "$ref": "#/components/schemas/NativeReport"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid period or path"
+            "$ref": "#/components/responses/Error400"
           },
           "401": {
-            "description": "Authentication required"
+            "$ref": "#/components/responses/Error401"
           },
           "404": {
-            "description": "Inaccessible website"
+            "$ref": "#/components/responses/Error404"
           },
           "503": {
-            "description": "Report budget exhausted"
+            "$ref": "#/components/responses/Error503"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_native_report"
       }
     },
     "/v1/websites/{id}/comparison": {
@@ -3863,8 +4723,18 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_comparison"
       }
     },
     "/v1/websites/{id}/content": {
@@ -3920,8 +4790,18 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_content"
       }
     },
     "/v1/websites/{id}/acquisition": {
@@ -3992,8 +4872,18 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_acquisition"
       }
     },
     "/v1/websites/{id}/vitals/comparison": {
@@ -4046,8 +4936,18 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_vitals_comparison"
       }
     },
     "/v1/websites/{id}/newsletters": {
@@ -4100,8 +5000,18 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_newsletters"
       }
     },
     "/v1/websites/{id}/events": {
@@ -4178,8 +5088,18 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_events"
       }
     },
     "/v1/websites/{id}/campaign-costs": {
@@ -4248,8 +5168,18 @@
                 }
               }
             }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_v1_websites_id_campaign_costs"
       },
       "post": {
         "summary": "Record or revise a supplied advertising cost with provenance",
@@ -4303,9 +5233,19 @@
             }
           },
           "409": {
-            "description": "Stale/conflicting version or retained-record allowance reached"
+            "$ref": "#/components/responses/Error409"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "post_v1_websites_id_campaign_costs"
       }
     },
     "/owner/v1/commercial": {
@@ -4328,9 +5268,20 @@
             }
           },
           "401": {
-            "description": "No current full owner session/grant"
+            "$ref": "#/components/responses/Error401"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "get_owner_v1_commercial",
+        "parameters": []
       }
     },
     "/owner/commercial/retry-mail": {
@@ -4362,18 +5313,37 @@
         },
         "responses": {
           "303": {
-            "description": "Retry queued; redirect to /owner/commercial"
+            "description": "Retry queued; redirect to /owner/commercial",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Same-site navigation, or validated hosted provider URL"
+              }
+            }
           },
           "401": {
-            "description": "Full platform owner session required"
+            "$ref": "#/components/responses/Error401"
           },
           "403": {
-            "description": "Origin refused"
+            "$ref": "#/components/responses/Error403"
           },
           "409": {
-            "description": "Message is not dead, has no body, or its link is consumed/revoked/expired"
+            "$ref": "#/components/responses/Error409"
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
           }
-        }
+        },
+        "operationId": "post_owner_commercial_retry_mail",
+        "parameters": []
       }
     }
   },
@@ -5298,6 +6268,990 @@
                 "type": "integer",
                 "minimum": 0
               }
+            }
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "integer",
+                "minimum": 400,
+                "maximum": 599
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ]
+      },
+      "Organization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "analyst",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role"
+        ]
+      },
+      "Id": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "OrganizationId": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "organization_id"
+        ]
+      },
+      "WebsiteId": {
+        "type": "object",
+        "properties": {
+          "website_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "website_id"
+        ]
+      },
+      "Website": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "collection_id": {
+            "type": "string"
+          },
+          "verification_token": {
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "is_demo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "name",
+          "origin",
+          "collection_id",
+          "verification_token",
+          "verified_at",
+          "active",
+          "is_demo"
+        ]
+      },
+      "Breakdown": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "label",
+          "count"
+        ]
+      },
+      "Overview": {
+        "type": "object",
+        "properties": {
+          "pageviews": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visitors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "realtime": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bounce_rate": {
+            "type": "number"
+          },
+          "timeseries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Breakdown"
+            }
+          }
+        },
+        "required": [
+          "pageviews",
+          "visitors",
+          "sessions",
+          "realtime",
+          "bounce_rate",
+          "timeseries"
+        ]
+      },
+      "Goal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "event_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "event_name"
+        ]
+      },
+      "Credential": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "read",
+              "integration"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "scope"
+        ]
+      },
+      "KeyRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "scope",
+          "created_at",
+          "revoked_at"
+        ]
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string"
+          },
+          "monthly_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "accepted_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "billing_provider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan",
+          "monthly_events",
+          "accepted_events",
+          "billing_provider"
+        ]
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "display_name"
+        ]
+      },
+      "Invitation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accept_url": {
+            "type": "string"
+          },
+          "emailed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "accept_url",
+          "emailed"
+        ]
+      },
+      "Export": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "error",
+          "created_at",
+          "expires_at"
+        ]
+      },
+      "Deletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "error"
+        ]
+      },
+      "FunnelStep": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "page",
+              "page_prefix",
+              "event"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ]
+      },
+      "Funnel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FunnelStep"
+            }
+          },
+          "window_seconds": {
+            "type": "integer"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "session",
+              "visitor"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "steps",
+          "window_seconds",
+          "scope"
+        ]
+      },
+      "FunnelResult": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "participants": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "conversion_rate": {
+            "type": "number"
+          },
+          "drop_off": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "kind",
+          "value",
+          "sessions",
+          "participants",
+          "conversion_rate",
+          "drop_off"
+        ]
+      },
+      "FunnelReport": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "window_seconds": {
+            "type": "integer"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FunnelResult"
+            }
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "window_seconds",
+          "steps",
+          "scope"
+        ]
+      },
+      "Journey": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "items": false,
+              "minItems": 3,
+              "maxItems": 3
+            }
+          }
+        },
+        "required": [
+          "session_id",
+          "country",
+          "events",
+          "steps"
+        ]
+      },
+      "Vital": {
+        "type": "object",
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "samples": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "p50": {
+            "type": "number"
+          },
+          "p75": {
+            "type": "number"
+          },
+          "p95": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "samples",
+          "p50",
+          "p75",
+          "p95"
+        ]
+      },
+      "Revenue": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "string"
+          },
+          "payments": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dimension_present": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "currency",
+          "total_minor",
+          "payments",
+          "dimension_present"
+        ]
+      },
+      "Acceptance": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duplicates": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "event_id",
+          "accepted",
+          "duplicates"
+        ]
+      },
+      "BatchAcceptance": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duplicates": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "accepted",
+          "duplicates"
+        ]
+      },
+      "Provisioned": {
+        "type": "object",
+        "properties": {
+          "website_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "collection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "integration_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "website_id",
+          "collection_id",
+          "integration_key",
+          "verification_token",
+          "verified",
+          "revision",
+          "state"
+        ]
+      },
+      "NativeConnection": {
+        "type": "object",
+        "properties": {
+          "website_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "collection_id": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "website_id",
+          "collection_id",
+          "audience"
+        ]
+      },
+      "NativeSession": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "const": "Bearer"
+          },
+          "expires_in": {
+            "const": 60
+          },
+          "website_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "website_id"
+        ]
+      },
+      "NativePage": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "pageviews": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visitors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "path",
+          "pageviews",
+          "visitors",
+          "sessions"
+        ]
+      },
+      "NativeReport": {
+        "type": "object",
+        "properties": {
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Breakdown"
+            }
+          },
+          "page": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NativePage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "activity",
+          "page"
+        ]
+      }
+    },
+    "responses": {
+      "Error400": {
+        "description": "Invalid request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Error401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Error404": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RequestError": {
+        "description": "Request rejected or dependency unavailable; JSON unless Accept prefers HTML",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Error429": {
+        "description": "Request budget exhausted",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "description": "Minimum seconds before retry",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "Error503": {
+        "description": "Temporarily unavailable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "description": "Minimum seconds before retry",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "Error403": {
+        "description": "Forbidden or invalid Origin",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Error409": {
+        "description": "Conflict or allowance reached",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          },
+          "text/html": {
+            "schema": {
+              "type": "string"
             }
           }
         }

@@ -1,5 +1,13 @@
 # Changelog
 
+## Priority 6 — release packaging (2026-11-10)
+
+- Versioned npm/Rust SDK packages, TypeScript declarations and verified package consumers; browser/vitals license notices and install guides.
+- Checksummed release/operator bundles, source/migration hashes, script SRI and optional pinned-key signatures with tamper rejection.
+- Complete OpenAPI response contracts and route/live-response validation; restored API/security references plus customer/owner, migration and release runbooks.
+- Fixed CI runner/toolchain configuration and added package/contract checks; prepared same-commit CI-gated, GitHub-attested draft releases and separate registry publish jobs.
+- Remote rerun/publication and production acceptance still require the owner's commit/push and external configuration.
+
 ## 0.1.0 — unreleased
 
 - Establish independent Rust workspace, durable analytics pipeline and Material 3 dashboard.

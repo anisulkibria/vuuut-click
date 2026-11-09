@@ -3,6 +3,10 @@ name = "click-sdk"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository = "https://github.com/anisulkibria/vuuut-click"
+description = "Server-side SDK for Vuuut Click analytics and native CMS integration"
+readme = "README.md"
+include = ["src/**", "README.md", "LICENSE", "Cargo.toml", "Cargo.lock"]
 
 [dependencies]
 reqwest.workspace = true

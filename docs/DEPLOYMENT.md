@@ -29,7 +29,7 @@ Use MaxMind's maintained `geoipupdate` program on the operator's host with their
 
 PostgreSQL is the durability boundary. ClickHouse outages retain pending payloads with bounded retries; after 20 failures rows become dead letters. Inspect counts/oldest available_at/attempts with a privileged database connection; recover the cause, then run `click-server requeue-dead`. Never delete outbox ledger rows to retry: doing so can inflate usage or permit replay under new acceptance time. A worker drains at most 500 events per transaction; a process restart replays safely. `serve` embeds a worker; `worker` runs independently when extra drain capacity is needed.
 
-Logs use structured tracing and query limits are enforced in the ClickHouse client. Prometheus/Grafana dashboards and OpenTelemetry export are remaining operations milestones; no unsupported monitoring guarantees are claimed.
+Structured tracing, private OTLP export and bounded ClickHouse queries are implemented. Prometheus/Grafana and alert delivery are validated locally; configure production receivers and deployment evidence through OPERATIONS.md.
 
 ## Backups, upgrades and rollback
 
@@ -74,7 +74,7 @@ explicitly labeled demo sites with `seed-demo` to see sample reports.
 Retention sweeps share a PostgreSQL advisory lock across processes and check
 for expired rows before scheduling ClickHouse mutations. Empty sweeps no
 longer rewrite shared aggregate parts. This avoids redundant local work;
-distributed abuse/report budgets remain a separate release gate.
+shared PostgreSQL admission/report budgets now coordinate replicas under Priority 5.
 
 Priority 4 commercial setup and the test-only isolated provider workflow are in
 [COMMERCIAL_VALIDATION.md](COMMERCIAL_VALIDATION.md). Deploy additive PostgreSQL
@@ -105,3 +105,8 @@ Merge compose.observability.yml with production Compose; configure the actual
 alert receiver and private scrape mounts. Systemd timer templates are under
 deploy/systemd. Build on a separate build worker; the local4GB Docker VM is not
 a production capacity qualification. Public-domain work remains deferred.
+
+
+SDK packaging, signatures and remote publication are described in [RELEASE.md](RELEASE.md).
+Follow [MIGRATIONS.md](MIGRATIONS.md) for upgrades/rollback and [ADMIN_GUIDE.md](ADMIN_GUIDE.md)
+for customer/owner administration. Current PostgreSQL schema is 0014.

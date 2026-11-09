@@ -1,0 +1,44 @@
+{
+  "name": "@vuuut/click",
+  "version": "0.1.0",
+  "description": "Consent-aware Vuuut Click browser tracker and server API client",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./dist/api.d.ts",
+      "import": "./dist/api.js"
+    },
+    "./tracker.js": "./dist/tracker.js",
+    "./vitals.js": "./dist/vitals.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES"
+  ],
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/tracker.js",
+    "./dist/vitals.js"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anisulkibria/vuuut-click.git",
+    "directory": "tracker"
+  }
+}

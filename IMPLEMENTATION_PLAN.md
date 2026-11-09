@@ -1,6 +1,6 @@
 # Implementation plan
 
-This is a new application. Production release remains gated on the items below.
+Priorities 1–6 are implemented and locally validated. Release packaging and acceptance tooling are complete locally; external production release remains gated as recorded in docs/RELEASE.md.
 
 ## Milestones and acceptance criteria
 
@@ -9,7 +9,7 @@ This is a new application. Production release remains gated on the items below.
 3. **Basic SaaS foundation — implemented** — registration/login/logout, memberships and RBAC, website credentials, transactional quota metering, event-match goals, scoped APIs, setup, light/dark/system themes. Roles and cross-tenant negative tests pass. Team invitations, organization lifecycle and account/credential/privacy settings are now implemented and tested locally; production hardening remains gated.
 4. **Advanced analytics — Priority 3 implemented** — ordered session funnels, journeys, first/last/non-direct net revenue attribution, Web Vitals percentiles, exports, per-tenant deletion/retention. Real-database and browser validation completed. Period comparisons, richer content/acquisition/event reports, optional visible-time/scroll tracking, provided-identity retention/cohorts, visitor/prefix funnels, newsletter editions and currency-separated campaign-cost/ROI reporting are implemented; goal/funnel editing is complete. See docs/ANALYTICS_METRICS.md for coverage semantics.
 5. **Ghost integration — Priority 2 complete and verified** — versioned idempotent provisioning, domain/lifecycle/entitlement sync, pinned RS256/JWKS staff exchange, signed transactional CMS outboxes, retries/rotation/disconnect, consent-aware tracker injection and native Admin reports are implemented in all three repositories. Terminal erasure and fresh-mapping restoration are covered. See docs/GHOST_INTEGRATION.md and CONTINUE.md for final verification evidence.
-6. **Commercial operations — Priority 4 complete in test scope** — Exact Stripe checkout retry/cancellation, safe portal/webhook entitlement transitions, bounded source-linked mail and owner fulfillment monitoring are implemented. Real Stripe test-clock renewal failure/recovery/replay/cancellation, hosted Checkout and controlled-inbox verification/customer reset/owner reset/invitation passed. Manual portal annual change and scheduled cancellation also passed; isolated fixtures were cleaned up and the operator deferred public-domain setup. Distributed abuse controls, OTel/alerts, encrypted backup/restore drills, scanning and scale benchmarks remain Priority 5 gates. See docs/COMMERCIAL_VALIDATION.md.
+6. **Commercial operations — Priority 4 complete in test scope** — Exact Stripe checkout retry/cancellation, safe portal/webhook entitlement transitions, bounded source-linked mail and owner fulfillment monitoring are implemented. Real Stripe test-clock renewal failure/recovery/replay/cancellation, hosted Checkout and controlled-inbox verification/customer reset/owner reset/invitation passed. Manual portal annual change and scheduled cancellation also passed; isolated fixtures were cleaned up and the operator deferred public-domain setup. Shared admission, private observability, encrypted recovery, source/runtime scanning and local capacity drills are implemented and validated under Priority 5; external deployment gates remain. See docs/COMMERCIAL_VALIDATION.md.
 
 ## Unknowns / external configuration
 
@@ -230,3 +230,20 @@ See docs/OPERATIONS.md.
 User chose local validation first: off-machine storage/escrow, public deployment,
 full production-volume/soak qualification and independent review remain external
 gates. Pause after this checkpoint; Priority6 starts only when the user resumes.
+
+### Priority 6 release implementation — 2026-11-10
+
+Versioned npm/Rust packages, installable consumer/type checks, verified Cargo
+packaging, signed checksum/source/migration manifests, script SRI and operator
+bundles are implemented. OpenAPI covers 85 operations/46 schemas and exact router
+coverage; 28 live responses validate. Operator/admin, API/security, migration and
+release guides are current. Formatting/strict Clippy, 11 Python guards, three SDK
+wire checks, TypeScript consumer/build, actionlint and source/license/secret scan
+pass. Main retains existing accounts/data and TEST Stripe/SMTP.
+
+Inspected actual GitHub P5 CI: security/image passed; browser installation failed.
+Prepared Ubuntu24.04/toolchain fixes and exact-SHA CI-gated attested draft release
+plus separate registry publish jobs. Their remote execution/publication remains
+pending the owner's commit/push, version tag and registry trust/ownership/secrets.
+Local signing is validation-only; production acceptance is not claimed. See
+RELEASE.md and the final CONTINUE.md evidence/limitations.

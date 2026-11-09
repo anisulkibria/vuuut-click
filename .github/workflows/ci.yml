@@ -4,7 +4,7 @@ permissions:
   contents: read
 jobs:
   rust-and-real-stack:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:17.6-alpine
@@ -25,37 +25,44 @@ jobs:
       CLICKHOUSE_PASSWORD: ci_test_only
       CLICKHOUSE_DATABASE: click
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - uses: dtolnay/rust-toolchain@stable
-        with: {components: rustfmt, clippy}
+        with: {components: 'rustfmt, clippy'}
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked -- --include-ignored --test-threads=1
       - name: Python recovery safety guards
         run: |
           python3 -m venv /tmp/click-ops-venv
-          /tmp/click-ops-venv/bin/pip install -r scripts/requirements-ops.txt
+          /tmp/click-ops-venv/bin/pip install -r scripts/requirements-ops.txt -r scripts/requirements-release.txt
           /tmp/click-ops-venv/bin/python -m unittest discover -s scripts -p 'test_*.py'
+      - name: Validate complete OpenAPI contract
+        run: /tmp/click-ops-venv/bin/python scripts/validate-contract.py
       - name: Encrypted restore and arrival-rate smoke drill
         run: |
           python3 scripts/install-ops-tools.py restic
           cargo build --locked -p click-server
           export BACKUP_PG_CONTAINER="$(docker ps --filter ancestor=postgres:17.6-alpine --format '{{.ID}}')"
           /tmp/click-ops-venv/bin/python scripts/validate-operations.py --volume-rows 10000 --duration 5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with: {node-version: '24', cache: npm}
-      - run: npm ci && npm run check && npm run build
+      - run: npm ci && npm run check && npm run build && npm run test:sdk
+      - name: Check SDK package and licenses
+        run: |
+          python3 scripts/release.py build --output .local/ci-release
+          git diff --exit-code -- tracker/dist
       - run: npx playwright install --with-deps chromium
       - name: Real browser tests
         run: |
           cargo run --locked -p click-server -- serve > /tmp/click-server.log 2>&1 &
           for i in $(seq 1 60); do curl -fsS http://localhost:8082/readyz && break; sleep 1; done
+          /tmp/click-ops-venv/bin/python scripts/validate-contract.py --base http://localhost:8082
           npm run test:e2e
 
   security-and-image:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with: {persist-credentials: false}
       - uses: dtolnay/rust-toolchain@stable
       - run: python3 scripts/install-ops-tools.py
@@ -65,7 +72,7 @@ jobs:
         run: docker build --tag vuuut-click:ci .
       - name: Scan source and final runtime image
         run: python3 scripts/security-scan.py --image vuuut-click:ci
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: operational-security-evidence

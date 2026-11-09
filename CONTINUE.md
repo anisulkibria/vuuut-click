@@ -1,6 +1,6 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–5 are complete in the authorized local scope. Work is paused before Priority 6; the user explicitly chose local validation first and requested **pause after Priority5, before Priority6**. Preserve the latest Priority5 evidence and final completion note below. Public-domain work remains deferred and no Hostinger site is authorized. Main runs on http://localhost:8082 with real TEST Stripe/scoped SMTP plus shared admission/metrics/OTLP. No commit or push.
+Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–6 are implemented in the authorized local scope. Priority 6 release packages/contracts/runbooks and local verification are complete; remote final-revision CI, registry publication and production acceptance remain external gates. The user handles commits/pushes. Public-domain work is deferred and no Hostinger site is authorized. Main remains on http://localhost:8082 with real TEST Stripe/scoped SMTP and Priority 5 operations. No commit or push.
 
 ## What the user is building
 
@@ -62,7 +62,7 @@ Original machine project: `/Users/anisulkibria/Documents/Rust/Ghost/Vuuut-click`
 - Existing demo website: `Vuuut Journal · Demo`, id `2220b39d-ac4c-4830-9ed4-c242718129c0`. Existing real website stays separate.
 - Local private `.env`; Docker PostgreSQL on 55432, ClickHouse HTTP on 58123. Persistent named Docker volumes. Health `/healthz`, dependencies `/readyz`.
 - Main server log/PID: `.local/server.log`, `.local/server.pid`. Temporary staging 8083 was stopped; the verified build is running on 8082. Verify readiness; do not assume a process survived a device restart.
-- Migrations 0001–0011 PostgreSQL and 0001–0003 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
+- Migrations 0001–0014 PostgreSQL and 0001–0003 ClickHouse. SQLx checksums and ClickHouse `control_migrations` ledger. Never edit an applied migration; add a new one.
 
 ## Clone and run on another device
 
@@ -244,8 +244,8 @@ On this Mac, use `CHROMIUM_EXECUTABLE_PATH="/Applications/Google Chrome.app/Cont
 2. **Native Ghost/Vuuut and Vuuut-pro integration — complete and verified.** All requested components are present in the sibling repositories; see the new native integration section and docs/GHOST_INTEGRATION.md. Never expose platform/integration credentials in browser content.
 3. **Analytics breadth — complete and verified under Priority 3.** Richer content/acquisition/event reports, opt-in engagement, returning/cohorts and period comparisons, visitor/prefix funnels, newsletter editions, extra attribution dimensions and explicit-cost ROI are implemented. See docs/ANALYTICS_METRICS.md and the completion evidence below.
 4. **Production commercial validation — complete in agreed test scope.** Test-mode Checkout, real API/webhook replay/renewal failure/recovery/cancellation and controlled-inbox customer/owner mail passed, with safe checkout, mail and fulfillment policies implemented. See the latest evidence below. Public-domain/TLS/sender alignment is explicitly deferred by the user; none of the connected Hostinger sites may be used. No live charges are authorized.
-5. **Operational release gates**: OTel and metrics/dashboards/alerts, distributed edge/request budgets, encrypted off-site backups with cross-store consistency and verified restore drills, dependency/image/license scanning, Linux image/TLS deployment, capacity/load benchmarks at 1M/10M/100M monthly events, independent security review. NATS JetStream is optional only when distributed queue requirements justify it; current PostgreSQL outbox is durable. Keep readiness, retry and dedup behavior through migrations.
-6. **Release/package work**: version/publish signed browser and Rust SDKs, OpenAPI response-schema completeness, operator/admin and migration documentation, CI execution on actual remote and production acceptance evidence. Maintain license notices. Do not assert production-ready until all gates genuinely pass.
+5. **Operational release gates — implemented and locally validated under Priority 5**: OTel and metrics/dashboards/alerts, distributed edge/request budgets, encrypted off-site backups with cross-store consistency and verified restore drills, dependency/image/license scanning, Linux image/TLS deployment, capacity/load benchmarks at 1M/10M/100M monthly events, independent security review. NATS JetStream is optional only when distributed queue requirements justify it; current PostgreSQL outbox is durable. Keep readiness, retry and dedup behavior through migrations.
+6. **Release/package work — implementation complete locally**: versioned SDK packages/signatures, OpenAPI response schemas, operator/admin/migration documentation and gated release automation. Remote final-revision CI/publication and production acceptance are external completion gates. Maintain license notices. Do not assert production-ready until all gates genuinely pass.
 
 External inputs eventually needed: actual deployment domain/TLS, MaxMind account/licensed Country MMDB, SMTP credentials, Stripe keys/price IDs/webhook secret, backup storage/secrets. Ask only when an actual next step requires them; continue independent code/test work first.
 
@@ -965,3 +965,46 @@ independent security review. Local arrival profiles do not qualify 100M resident
 rows. See `docs/OPERATIONS.md` for commands, limitations and recovery procedures.
 The checked-in ClickHouse read-buffer profile and chunked Native backups address
 the local 4GB VM memory refusals without weakening counts/report assertions.
+
+## Priority 6 — local release implementation complete, 2026-11-10
+
+Added versioned @vuuut/click and click-sdk packaging, declarations, actual installed
+npm consumer/type/wire checks, Cargo package verification, browser/operator bundles,
+source/migration SHA256 manifests, SHA384 SRI and explicit pinned-key signatures.
+The validation private key is ignored and 0600; it is not a production identity.
+Signature guards reject changed bytes/manifests, substituted keys and path escapes.
+
+OpenAPI covers all 85 API/health/form operations with 46 response/data schemas,
+shared error/content/retry definitions and exact route/method coverage. Both
+retention methods and empty funnel PATCH are correct. The live checker validates
+28 real responses, including existing-account reports, viewer export denial and
+independent owner authorization. Restored overwritten API/security documents and
+added ADMIN_GUIDE.md, MIGRATIONS.md, RELEASE.md and RELEASE_NOTES.md.
+
+Local checks: strict Clippy/all targets and formatting, 11 Python safety checks,
+three SDK wire checks against source and the installed tarball, strict TypeScript
+consumer/check/build, packaged Rust compilation, actionlint and source/license/
+secret scan passed. No high/critical or secret findings. The unchanged tracker
+JavaScript bundles retain the previous 11-browser/51-backend evidence; these full
+suites were not rerun for documentation/packaging changes. Main rebuilt to embed
+the updated contract; original customer/owner/Events and TEST Stripe/SMTP smoke
+passed. No account/data/password changes, migration or sibling modification.
+
+The actual remote is https://github.com/anisulkibria/vuuut-click. Inspected run
+42689087362 for committed P5 revision4fca5c3: security/image passed; verify failed
+at Playwright Chromium installation after ubuntu-latest moved. CI now pins
+Ubuntu24.04, fixes the components input, updates Node-based actions and adds
+contract/package validation. These new corrections are not remotely verified.
+Release workflow requires a matching tag ref and green push CI on its exact SHA,
+attests each artifact and creates a draft release. Optional npm/Rust publication
+uses separate sdk-release environment jobs after provenance verification.
+
+Candidate artifacts: `.local/releases/0.1.0-priority6-final/` (four artifacts,
+manifest/checksums/signature/public key; local validation identity, dirty candidate).
+Evidence: `.local/priority6-{package-final,live-contract,clippy,python,workflows,
+main-smoke,security,signature-final}.log`, `priority6-security-evidence.json` and
+`priority6-remote-ci.json`. Production/registry signing identities and package-name
+ownership/configuration have not been supplied. The user must commit/push, obtain
+green remote CI, configure registry trust/secrets and dispatch the tagged release.
+Do not call public publication or production acceptance complete. External P5
+public-domain, GeoIP, off-machine escrow/soak/independent-review gates still apply.

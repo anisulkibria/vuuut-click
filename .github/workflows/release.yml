@@ -1,0 +1,130 @@
+name: release-sdk
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag, e.g. v0.1.0; its exact commit must have successful verify CI
+        required: true
+        type: string
+      publish_packages:
+        description: Publish to configured npm/crates registries after sdk-release environment approval
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require version tag and successful CI on the same commit
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess, tomllib
+          tag=os.environ['RELEASE_TAG']
+          assert re.fullmatch(r'v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?', tag)
+          version=tomllib.load(open('Cargo.toml','rb'))['workspace']['package']['version']
+          assert tag=='v'+version, 'Tag/package version mismatch'
+          assert os.environ['GITHUB_REF']=='refs/tags/'+tag, 'Dispatch the workflow on the same tag ref'
+          sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          assert subprocess.check_output(['git','rev-parse',tag+'^{commit}'],text=True).strip()==sha
+          data=json.loads(subprocess.check_output(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/actions/workflows/ci.yml/runs?head_sha={sha}&per_page=100'],text=True))
+          runs=sorted((r for r in data['workflow_runs'] if r['head_sha']==sha and r['event']=='push'),key=lambda r:r['run_number'],reverse=True)
+          assert runs and runs[0]['conclusion']=='success', 'Latest push CI must pass on the exact release revision'
+          PY
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v7.1.0
+        with: {node-version: '24', cache: npm}
+      - run: npm ci
+      - name: Build verified SDKs and operator bundle
+        run: |
+          cargo fetch --locked
+          python3 -m venv /tmp/release-venv
+          /tmp/release-venv/bin/pip install -r scripts/requirements-release.txt
+          /tmp/release-venv/bin/python scripts/validate-contract.py
+          python3 scripts/release.py build --output .local/release
+          git diff --exit-code -- tracker/dist
+      - uses: actions/attest@v4.2.2
+        with:
+          subject-path: .local/release/*
+      - name: Attach signed-provenance artifacts to a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh release create "$RELEASE_TAG" .local/release/* --verify-tag --draft --title "Vuuut Click $RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-sdk
+          path: .local/release/*
+          if-no-files-found: error
+  publish-npm:
+    if: inputs.publish_packages
+    needs: package
+    environment: sdk-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with: {ref: '${{ inputs.tag }}', persist-credentials: false}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v7.1.0
+        with: {node-version: '24', registry-url: 'https://registry.npmjs.org'}
+      - name: Download and verify GitHub-attested release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p .local/release
+          gh release download "$RELEASE_TAG" --dir .local/release
+          for artifact in .local/release/*; do
+            gh attestation verify "$artifact" --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-ref "refs/tags/$RELEASE_TAG" --source-digest "$(git rev-parse HEAD)"
+          done
+      - name: Publish browser SDK with npm trusted publishing
+        run: npm publish .local/release/vuuut-click-*.tgz --access public --provenance
+  publish-rust:
+    if: inputs.publish_packages
+    needs: package
+    environment: sdk-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with: {ref: '${{ inputs.tag }}', persist-credentials: false}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v7.1.0
+        with: {node-version: '24', registry-url: 'https://registry.npmjs.org'}
+      - name: Download and verify GitHub-attested release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p .local/release
+          gh release download "$RELEASE_TAG" --dir .local/release
+          for artifact in .local/release/*; do
+            gh attestation verify "$artifact" --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-ref "refs/tags/$RELEASE_TAG" --source-digest "$(git rev-parse HEAD)"
+          done
+      - name: Publish Rust SDK to the operator-configured registry
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          test -n "$CARGO_REGISTRY_TOKEN"
+          cargo publish --locked -p click-sdk

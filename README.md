@@ -2,7 +2,7 @@
 
 Independent Rust analytics SaaS in the same Material 3 style as Vuuut and Vuuut-pro. Rust renders the dashboard directly; there is no React/Next/Node server. PostgreSQL durably accepts events and meters usage; a retrying worker delivers to ClickHouse; reports query actual analytics data.
 
-The main standalone SaaS workflows and advanced reports are implemented for local development. Native Vuuut/Vuuut-pro integration is complete and verified locally; Priority 3 analytics breadth is complete and verified locally, including engagement, retention/cohorts, newsletter editions and campaign costs. Priority 4 commercial safeguards are implemented and verified with 47 backend checks, 11 browser scenarios, real Stripe test-mode lifecycle events and controlled-inbox account/owner email. Manual Checkout, portal interval change and scheduled cancellation passed; public-domain setup is deferred by the operator. Verification is recorded in the handoff and [commercial validation runbook](docs/COMMERCIAL_VALIDATION.md). Priority 5 adds shared admission limits, private monitoring/OTLP, encrypted consistent backup/restore and operational validation tools; see [operations](docs/OPERATIONS.md). **External production release gates remain unfinished.** Start with [CONTINUE.md](CONTINUE.md) to resume on any device; the full original requirements are preserved in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md).
+The main standalone SaaS workflows and advanced reports are implemented for local development. Native Vuuut/Vuuut-pro integration is complete and verified locally; Priority 3 analytics breadth is complete and verified locally, including engagement, retention/cohorts, newsletter editions and campaign costs. Priority 4 commercial safeguards are implemented and verified with 47 backend checks, 11 browser scenarios, real Stripe test-mode lifecycle events and controlled-inbox account/owner email. Manual Checkout, portal interval change and scheduled cancellation passed; public-domain setup is deferred by the operator. Verification is recorded in the handoff and [commercial validation runbook](docs/COMMERCIAL_VALIDATION.md). Priority 5 adds shared admission limits, private monitoring/OTLP, encrypted consistent backup/restore and operational validation tools; see [operations](docs/OPERATIONS.md). Priority 6 provides versioned SDK packages, signature/provenance tooling, complete API response contracts and operator/release guides. **Remote final-revision CI, public publication and external production release gates remain unfinished.** Start with [CONTINUE.md](CONTINUE.md) to resume on any device; the full original requirements are preserved in [docs/ORIGINAL_BRIEF.md](docs/ORIGINAL_BRIEF.md).
 
 ## Run and experience the app
 
@@ -52,6 +52,9 @@ The normal unit command explicitly skips the real-stack integration test. `--inc
 - [Architecture and source/license review](docs/ARCHITECTURE.md)
 - [Database design and metrics](docs/DATABASE_DESIGN.md)
 - [API contracts](docs/API_SPECIFICATION.md) / [OpenAPI](docs/openapi.json)
+- [SDK packaging, signatures and release](docs/RELEASE.md)
+- [Customer/platform administration](docs/ADMIN_GUIDE.md)
+- [Migrations, upgrade and rollback](docs/MIGRATIONS.md)
 - [Tracker and consent](docs/TRACKER.md)
 - [Security/privacy and release gates](docs/SECURITY.md)
 - [Commercial policies and actual provider evidence](docs/COMMERCIAL_VALIDATION.md)
