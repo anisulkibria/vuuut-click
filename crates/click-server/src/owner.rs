@@ -267,7 +267,7 @@ pub(crate) fn owner_shell(h: &HeaderMap, email: &str, section: &str, body: Strin
         "settings",
         section == "account",
     ) + &navigation_link("/v1/openapi.json", "API reference", "info", false)
-        + r#"<a href="/dashboard" class="nav-item" aria-label="User dashboard" target="_blank" rel="noopener"><span aria-hidden="true">↗</span><span>User dashboard</span></a>"#;
+        + r#"<a href="/dashboard" class="nav-item" aria-label="User dashboard" target="_blank" rel="noopener"><span class="ic tint-teal" aria-hidden="true">↗</span><span>User dashboard</span></a>"#;
     with_sidebar(
         h,
         email,

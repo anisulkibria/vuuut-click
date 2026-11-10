@@ -52,13 +52,30 @@ pub(crate) fn appearance_controls(action: &str) -> String {
     )
 }
 
+/// The tinted square behind a nav glyph — the same eight tints, on the same
+/// 26px square, that Vuuut and Vuuut-pro lead their rails with, so the three
+/// sidebars read as one family. Each console's glyphs land on distinct tints.
+fn nav_tint(glyph: &str) -> &'static str {
+    match glyph {
+        "overview" => "pink",
+        "audience" | "users" => "blue",
+        "acquisition" | "subscriptions" => "green",
+        "content" | "audit" => "amber",
+        "events" | "delivery" => "purple",
+        "sites" => "teal",
+        "workspaces" | "settings" => "slate",
+        _ => "red",
+    }
+}
+
 pub(crate) fn navigation_link(href: &str, label: &str, glyph: &str, active: bool) -> String {
     format!(
-        r#"<a href="{}" class="nav-item {}" aria-label="{}" {}>{}<span>{}</span></a>"#,
+        r#"<a href="{}" class="nav-item {}" aria-label="{}" {}><span class="ic tint-{}">{}</span><span>{}</span></a>"#,
         esc(href),
         if active { "selected" } else { "" },
         esc(label),
         if active { r#"aria-current="page""# } else { "" },
+        nav_tint(glyph),
         icon(glyph),
         esc(label)
     )
