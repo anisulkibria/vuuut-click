@@ -21,6 +21,8 @@ The Rust server remains the same application and uses the same database APIs.
 ./run.sh build       # Builds and atomically installs the Rust runtime
 ./run.sh rebuild     # Cleans this server package, retaining shared dependency caches
 ./run.sh test        # Workspace unit/default checks; real-store tests are separate below
+./run.sh link-siblings  # Symlink .local/siblings/* from VUUUT_DIR / VUUUT_PRO_DIR in .env
+./run.sh native-test -- --include-ignored  # Optional three-repository bridge suite
 ./run.sh help
 ```
 
@@ -57,6 +59,10 @@ https://www.postgresql.org/download/macosx/.
 - `.local/bin`: installed application/database executables, outside build caches.
 - `.local/server.log`, `.local/server.pid`: application log and process metadata.
 - `.local/connections`: provider encryption key and managed licensed GeoIP data.
+- `.local/siblings`: symlinks to the Vuuut and Vuuut-pro checkouts, written by
+  `./run.sh link-siblings` from `VUUUT_DIR` / `VUUUT_PRO_DIR` in `.env` (default:
+  the directories of those names next to this checkout). Only the optional
+  `tests/native-bridge` suite reads them; the service itself never does.
 
 Keep these paths through cache cleanup and device migration. None belongs in
 Git. Back up both databases and their matching private configuration/key using

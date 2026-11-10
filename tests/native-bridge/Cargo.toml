@@ -1,25 +1,32 @@
 # Optional three-repository integration suite. Main Click builds stay standalone.
+# The sibling crates are reached through `.local/siblings/`, symlinks that
+# `./run.sh link-siblings` writes from VUUUT_DIR and VUUUT_PRO_DIR in .env
+# (default: ../vuuut and ../vuuut-pro next to this checkout). They live outside
+# this directory on purpose: Cargo adopts any path dependency found under a
+# workspace root as a member of it, which would detach these crates from their
+# own workspaces (where their edition and shared dependency versions live).
 [package]
 name = "vuuut-native-bridge-tests"
 version = "0.1.0"
 edition = "2021"
 publish = false
+# Its own workspace so the main Click workspace never picks it up.
 [workspace]
 [dependencies]
 click-server = { path = "../../crates/click-server" }
 click-store = { path = "../../crates/click-store" }
 click-core = { path = "../../crates/click-core" }
-ghost-api = { path = "../../../Vuuut/crates/ghost-api" }
-ghost-core = { path = "../../../Vuuut/crates/ghost-core" }
-ghost-db = { path = "../../../Vuuut/crates/ghost-db" }
-ghost-render = { path = "../../../Vuuut/crates/ghost-render" }
-ghost-routing = { path = "../../../Vuuut/crates/ghost-routing" }
-ghost-front = { path = "../../../Vuuut/crates/ghost-front" }
-ghost-admin-ui = { path = "../../../Vuuut/crates/ghost-admin-ui" }
-pro-core = { path = "../../../Vuuut-pro/crates/pro-core" }
-pro-db = { path = "../../../Vuuut-pro/crates/pro-db" }
-pro-provision = { path = "../../../Vuuut-pro/crates/pro-provision" }
-pro-supervisor = { path = "../../../Vuuut-pro/crates/pro-supervisor" }
+ghost-api = { path = "../../.local/siblings/vuuut/crates/ghost-api" }
+ghost-core = { path = "../../.local/siblings/vuuut/crates/ghost-core" }
+ghost-db = { path = "../../.local/siblings/vuuut/crates/ghost-db" }
+ghost-render = { path = "../../.local/siblings/vuuut/crates/ghost-render" }
+ghost-routing = { path = "../../.local/siblings/vuuut/crates/ghost-routing" }
+ghost-front = { path = "../../.local/siblings/vuuut/crates/ghost-front" }
+ghost-admin-ui = { path = "../../.local/siblings/vuuut/crates/ghost-admin-ui" }
+pro-core = { path = "../../.local/siblings/vuuut-pro/crates/pro-core" }
+pro-db = { path = "../../.local/siblings/vuuut-pro/crates/pro-db" }
+pro-provision = { path = "../../.local/siblings/vuuut-pro/crates/pro-provision" }
+pro-supervisor = { path = "../../.local/siblings/vuuut-pro/crates/pro-supervisor" }
 tokio = { version = "1", features = ["full"] }
 axum = "0.8"
 tower = { version = "0.5", features = ["util"] }

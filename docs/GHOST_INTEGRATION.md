@@ -176,10 +176,15 @@ are repeated under the acceptance transaction's workspace lock.
 Run the normal Click workspace suite against real PostgreSQL/ClickHouse, plus:
 
 ```sh
-# From Vuuut-click, with its trusted local development .env sourced:
-cargo test --manifest-path tests/native-bridge/Cargo.toml -- --include-ignored
-# Siblings must be checked out as ../Vuuut and ../Vuuut-pro.
+# From vuuut-click; run.sh loads the trusted local .env itself:
+./run.sh native-test -- --include-ignored
 ```
+
+The suite's Cargo path dependencies go through `.local/siblings/`, a private
+directory of symlinks that `./run.sh link-siblings` (also run by
+`native-test`) writes from `VUUUT_DIR` and `VUUUT_PRO_DIR` in `.env`. Unset,
+they mean `../vuuut` and `../vuuut-pro` next to this checkout, so nothing
+depends on where the three repositories are installed or moved.
 
 The bridge suite calls the actual hosting reconciler, CMS worker, JWT signer,
 Admin renderer, theme renderer and Click API/stores. CMS `click_outbox` tests

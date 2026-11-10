@@ -35,7 +35,7 @@ async fn cms(origin: &str, host: Value) -> (ghost_api::AppState, String) {
     .unwrap();
     let router = Arc::new(ghost_routing::RouterTree::build(&routes).unwrap());
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../Vuuut/content/themes/source");
+        .join("../../.local/siblings/vuuut/content/themes/source");
     let deps = ghost_render::HelperDeps {
         pool: Arc::new(db.clone()),
         runtime: tokio::runtime::Handle::current(),

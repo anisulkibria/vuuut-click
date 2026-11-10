@@ -1,6 +1,6 @@
 # Vuuut Click — continue from here
 
-Last handoff: 2026-11-10 (Asia/Dhaka). Priorities 1–6 are implemented in the authorized local scope. Priority 6 release packages/contracts/runbooks and local verification are complete; remote final-revision CI, registry publication and production acceptance remain external gates. The user handles commits/pushes. Public-domain work is deferred and no Hostinger site is authorized. Main remains on http://localhost:8082 with real TEST Stripe/scoped SMTP and Priority 5 operations. Local databases now run natively; see the final native macOS checkpoint. No commit or push.
+Last handoff: 2026-11-10 (Asia/Dhaka), updated the same day after the native cutover below. Priorities 1–6 are implemented in the authorized local scope. Priority 6 release packages/contracts/runbooks and local verification are complete; remote final-revision CI, registry publication and production acceptance remain external gates. The user handles commits/pushes. Public-domain work is deferred and no Hostinger site is authorized. Main remains on http://localhost:8082 with real TEST Stripe/scoped SMTP and Priority 5 operations. Local databases now run natively; see the final native macOS checkpoint. No commit or push.
 
 ## What the user is building
 
@@ -35,6 +35,31 @@ Accepted decisions and follow-up requirements:
 **Demo**: CLI `seed-demo <registered-customer-email>` creates/refreshes only a marked separate demo website, 30 days of varied traffic, sources/campaigns/countries/devices, custom events, four goals, a funnel, net revenue/refunds and five Web Vitals. No collector or metering for demo. Default first site on the dashboard; banner clearly says Demo data.
 
 **Developer assets**: Rust `click-sdk`, server-side TypeScript `tracker/src/api.ts`, checked-in bundles in `tracker/dist`, OpenAPI, deployment templates, CI, architecture/license/security docs, real-stack and browser tests. `run.sh` now manages detached native app/database services and installs builds outside the cache; see docs/NATIVE_LOCAL.md.
+
+## Native cutover and location independence (2026-11-10)
+
+- **Docker is no longer used locally.** Both sign-in pages had returned 500 for
+  two days because the app's PostgreSQL/ClickHouse were still the
+  `compose.dev.yml` containers and Docker Desktop was not running. The data
+  was moved with `./run.sh migrate-docker` (verified: 37 control tables and
+  the analytics fingerprints matched). The app now runs from `.local/bin` on
+  the project-owned native PostgreSQL 17 (Homebrew `postgresql@17`, keg-only,
+  `LOCAL_PG_BINDIR` in `.env`) and the pinned native ClickHouse in
+  `.local/native`. `LOCAL_DB_MODE=native` is set in `.env`. The two Docker
+  containers are stopped and their volumes retained for rollback; the
+  snapshot is under `.local/native-migration/`. Homebrew's `postgresql@14`
+  remains the linked version on `PATH`.
+- **No absolute paths anywhere.** The three checkouts find each other only
+  through URLs at runtime, plus `.env`: here `VUUUT_DIR` / `VUUUT_PRO_DIR`
+  (default `../vuuut`, `../vuuut-pro`) feed `./run.sh link-siblings`, which
+  writes `.local/siblings/*` symlinks for the optional `tests/native-bridge`
+  suite; `./run.sh native-test [-- cargo-test-args]` links and runs it. The
+  main `Cargo.toml` excludes `.local` so Cargo does not adopt the linked
+  crates into this workspace through its cached root. Vuuut and Vuuut-pro
+  each gained a gitignored `.env` loaded by their `run.sh` (`GHOST_*` /
+  `PRO_*` config overrides, `VUUUT_DIR` for the hosting platform's CMS
+  checkout, `GHOST_REFERENCE_DIR` for the CMS gscan parity tests); see each
+  `.env.example`. The user handles commits; none were made.
 
 ## Current local access and state
 
@@ -409,10 +434,11 @@ production/load/scanning gates remain priorities 4–6. No production readiness
 claim, live payment, remote publication or Git commit was performed.
 
 The complete setup/contract is [docs/GHOST_INTEGRATION.md](docs/GHOST_INTEGRATION.md),
-with sibling [CMS notes](../Vuuut/docs/native-click.md) and
-[hosting notes](../Vuuut-pro/NATIVE_CLICK.md). The optional bridge suite lives at
-`tests/native-bridge`; it requires both sibling checkouts and the trusted local
-Click environment. Set `NATIVE_TEST_BROWSER=1` and a working
+with sibling [CMS notes](../vuuut/docs/native-click.md) and
+[hosting notes](../vuuut-pro/NATIVE_CLICK.md). The optional bridge suite lives at
+`tests/native-bridge`; `./run.sh native-test` links both sibling checkouts from
+`VUUUT_DIR`/`VUUUT_PRO_DIR` in `.env` (default: next to this checkout) and uses
+the trusted local Click environment. Set `NATIVE_TEST_BROWSER=1` and a working
 `CHROMIUM_EXECUTABLE_PATH` to include its real browser phases.
 
 Local runtime verified: Click is rebuilt and ready on **8082**, standalone CMS

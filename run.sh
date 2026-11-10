@@ -20,9 +20,12 @@ Vuuut Click local commands (native databases; no Docker needed):
   ./run.sh db-start          Start just the managed databases
   ./run.sh db-stop           Stop app, then managed databases
   ./run.sh migrate-docker    One-time, verified import of existing Docker data
+  ./run.sh link-siblings     Point tests/native-bridge at the vuuut / vuuut-pro checkouts
+  ./run.sh native-test [...]  Run the optional three-repository bridge suite
 
 Default mode is native. LOCAL_DB_MODE=external uses existing databases and
-never starts/stops them. Configuration: private .env. Data: .local/native/.
+never starts/stops them. Configuration: private .env (VUUUT_DIR / VUUUT_PRO_DIR locate the sibling
+checkouts; default is next to this directory). Data: .local/native/.
 Docker volumes are never deleted. See docs/NATIVE_LOCAL.md.
 HELP
   exit 0

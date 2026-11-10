@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["crates/click-core", "crates/click-store", "crates/click-server", "crates/click-sdk"]
+# `.local` holds private runtime state, the installed runtime, a build cache and
+# the `siblings/` symlinks to the Vuuut / Vuuut-pro checkouts used by
+# tests/native-bridge. Excluding it keeps Cargo from treating those linked
+# crates as part of this workspace when it resolves them through this root.
+exclude = [".local"]
 
 [workspace.package]
 version = "0.1.0"

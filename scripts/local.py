@@ -185,6 +185,51 @@ def install():
     # executable's digest for subsequent idempotent setup checks.
     atomic(receipt,json.dumps({'version':VERSIONS['clickhouse']['version'],'release_sha256':asset['sha256'],'installed_sha256':file_hash(target)},indent=2)+'\n')
 
+SIBLINGS = LOCAL / 'siblings'
+SIBLING_DEFAULTS = {'vuuut': ('VUUUT_DIR', 'crates/ghost-api/Cargo.toml'),
+                    'vuuut-pro': ('VUUUT_PRO_DIR', 'crates/pro-core/Cargo.toml')}
+
+def sibling_dir(name):
+    """Where a sibling checkout lives: VUUUT_DIR / VUUUT_PRO_DIR from the
+    private .env, else the directory of that name next to this checkout.
+    Nothing in the tree hardcodes a machine path, so the projects can be moved
+    or cloned anywhere as long as .env (or the default layout) says where."""
+    variable, marker = SIBLING_DEFAULTS[name]
+    raw = os.environ.get(variable, '').strip()
+    path = Path(os.path.expanduser(raw)) if raw else ROOT.parent / name
+    if not path.is_absolute():
+        path = ROOT / path
+    path = path.resolve()
+    if not (path / marker).is_file():
+        fail(f'{name} checkout not found at {path}; set {variable} in .env to its directory')
+    return path
+
+def link_siblings():
+    """Refresh .local/siblings/* so the bridge suite's Cargo path dependencies
+    resolve. Kept outside tests/native-bridge because Cargo would otherwise adopt
+    the linked crates into that workspace. Only symlinks are ever replaced."""
+    private_dir(SIBLINGS)
+    for name in SIBLING_DEFAULTS:
+        target = sibling_dir(name)
+        link = SIBLINGS / name
+        if link.is_symlink():
+            if Path(os.readlink(link)) == target:
+                continue
+            link.unlink()
+        elif link.exists():
+            fail(f'{link} exists and is not a symlink; move it aside')
+        temp = link.with_name(name + '.link-' + secrets.token_hex(4))
+        temp.symlink_to(target, target_is_directory=True)
+        os.replace(temp, link)
+        print(f'{name} -> {target}')
+
+def native_test(extra):
+    link_siblings()
+    if not shutil.which('cargo'):
+        fail('Install Rust stable before running the native bridge suite')
+    env={**os.environ,'CARGO_TARGET_DIR':os.environ.get('CARGO_TARGET_DIR',str(LOCAL/'build'))}
+    raise SystemExit(subprocess.call(['cargo','test','--manifest-path',str(ROOT/'tests/native-bridge/Cargo.toml'),*extra],env=env,cwd=ROOT))
+
 def file_hash(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -667,10 +712,17 @@ def main(argv=None):
     os.umask(0o077)
     if sys.version_info<(3,11):fail('Install Python 3.11 or newer for native local service control')
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=['init-env','setup','start','stop','restart','status','doctor','build','rebuild','test','db-start','db-stop','log','logs','migrate-docker'])
+    parser.add_argument('command',choices=['init-env','setup','start','stop','restart','status','doctor','build','rebuild','test','db-start','db-stop','log','logs','migrate-docker','link-siblings','native-test'])
     parser.add_argument('service',nargs='?',choices=['app','postgres','clickhouse'],default='app')
     parser.add_argument('-f','--follow',action='store_true')
-    args=parser.parse_args(argv)
+    argv=list(sys.argv[1:] if argv is None else argv)
+    # Everything after `--` goes to the command untouched (`native-test -- --include-ignored`).
+    passthrough=[]
+    if '--' in argv:
+        cut=argv.index('--');passthrough=argv[cut+1:];argv=argv[:cut]
+    args,extra=parser.parse_known_args(argv)
+    extra+=passthrough
+    if extra and args.command!='native-test':parser.error('unrecognized arguments: '+' '.join(extra))
     private_dir(LOCAL)
     if args.command=='init-env':
         if not (ROOT/'.env').exists() and (NATIVE/'postgres/PG_VERSION').exists():fail('Restore the matching private .env before starting an existing native database')
@@ -678,6 +730,8 @@ def main(argv=None):
     if args.command in ('log','logs'):logs(args.service,args.follow);return
     if args.command in ('build','rebuild'):
         build(args.command=='rebuild');return
+    if args.command=='link-siblings':link_siblings();return
+    if args.command=='native-test':native_test(extra)
     if args.command=='test':
         env={**os.environ,'CARGO_TARGET_DIR':os.environ.get('CARGO_TARGET_DIR',str(LOCAL/'build')),'CARGO_PROFILE_DEV_DEBUG':'0','CARGO_PROFILE_TEST_DEBUG':'0','CARGO_INCREMENTAL':'0'}
         raise SystemExit(subprocess.call(['cargo','test','--workspace'],env=env,cwd=ROOT))
